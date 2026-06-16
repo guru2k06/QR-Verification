@@ -35,9 +35,20 @@ export function getVerificationRecordView({ documentId, record, uploadedFile }) 
   };
 
   const details = record || fallback;
-  const userName = details.fullName || details.recipientName || details.issuer || 'Aarav Mehta';
+  const userName =
+    details.recipientName ||
+    details.fullName ||
+    details.studentName ||
+    details.employeeName ||
+    details.patientName ||
+    details.payerPayeeName ||
+    details.partyNames ||
+    details.idName ||
+    details.issuer ||
+    'Aarav Mehta';
 
   return {
+    ...details,
     documentId,
     userName,
     issuer: details.issuer || userName,

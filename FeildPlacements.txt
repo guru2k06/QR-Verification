@@ -1,0 +1,80 @@
+# Prompt: Field Placement Across Secure PDF & Verification Page
+
+## Objective
+Define exactly which fields/elements appear on the **Secure PDF (issued document)** vs the **Verification Page (web result)**, so the system shows the right information at the right stage — issuance vs verification — without leaking sensitive data or cluttering either view.
+
+---
+
+## 1. Secure PDF (the document itself, after QR embedding)
+
+This is the **original document content**, untouched, plus a small **verification stamp** added by the system. Do not alter or overlay the original content — only add a footer/stamp block.
+
+**Elements to embed on the PDF:**
+
+| Element | Placement | Notes |
+|---|---|---|
+| QR Code | Bottom-right corner of last page (or first page, if single-page like a certificate) | Encodes `https://verify.yourdomain.com/doc/{documentId}` only — no raw data |
+| Document ID (text) | Directly below/beside QR code | Human-readable fallback if QR can't be scanned |
+| "Verify at: verify.yourdomain.com" | Below Document ID | Lets users manually verify without scanning |
+| Issue date (small text) | Same stamp block | Optional, for visual confirmation |
+| Security stamp/watermark (optional) | Diagonal faint watermark or border | Optional branding, e.g., "SECURED" |
+
+**Do NOT put on the PDF:**
+- Full database metadata (issuer internal notes, verification count, status history)
+- Any hash value (no benefit to printing it, and it changes once QR is embedded)
+- Sensitive fields like masked account numbers, internal employee IDs — these stay in the original document content only, as originally authored
+
+---
+
+## 2. Verification Page (web result after scanning/lookup)
+
+This page pulls from the **database**, not the PDF, and is what builds trust. It should be type-aware — show different fields depending on `documentType`.
+
+### A. Always shown (every document type) — Header/Status Block
+| Field | Source |
+|---|---|
+| Status icon + label (✓ Verified / ✗ Invalid / ⚠ Revoked / Not Found) | Computed from hash comparison |
+| Document ID | Database |
+| Document Type | Database |
+| Issuer | Database |
+| Issued Date | Database |
+| Verification timestamp (when this check happened) | Generated at request time |
+
+### B. Conditionally shown — Type-Specific Detail Block
+Show only the fields relevant to that `documentType`, pulled from metadata:
+
+| Document Type | Fields shown on Verification Page |
+|---|---|
+| Academic (Marksheet/Degree/Bonafide) | Student Name, Roll Number, Institution, Course, Grade/CGPA, Year of Passing |
+| Employment (Offer/Experience Letter) | Employee Name, Designation, Company, Date of Joining/Relieving |
+| Medical Report | Patient Name (or masked), Hospital, Report Type, Report Date — **no diagnosis/results** |
+| Invoice | Invoice Number, Payer/Payee Name, Amount (optional), GSTIN, Due Date |
+| Legal Document | Party Names, Document Type, Notary/Advocate Name, Date of Execution |
+| Government ID | Name, Document Type, Issuing Authority, Validity Date — **mask ID numbers** |
+
+### C. Never shown on Verification Page (privacy/security)
+- Full file hash values (technical detail, not user-facing — show only "Match/Mismatch" result)
+- Unmasked account numbers, Aadhaar/passport numbers, salary figures
+- Internal admin notes, audit log raw IPs
+- Uploader's login credentials or internal user IDs
+
+### D. Tampered/Invalid State — show only this, nothing else
+```
+✗ DOCUMENT INVALID
+Reason: Hash Mismatch Detected
+Possible Tampering Found
+```
+Do not reveal what the original hash was or any document metadata — this prevents attackers from learning structure through repeated tampering attempts.
+
+### E. Revoked State
+```
+⚠ DOCUMENT REVOKED
+Revoked On: [date]
+Reason: [if disclosed by issuer, optional]
+```
+
+---
+
+## 3. Summary Rule of Thumb
+- **PDF = proof of origin** → carries only QR + Document ID + verify URL.
+- **Verification Page = proof of truth** → carries status + type-specific metadata, masked/sanitized for sensitive categories, and nothing from internal system logs.

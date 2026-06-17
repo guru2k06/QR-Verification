@@ -969,7 +969,22 @@ function UploadPage() {
   );
 }
 
-function VerificationState({ outcome, documentId, record, uploadedFile, uploadedFileHash }) {
+function VerificationState({ outcome, documentId, record, uploadedFile, uploadedFileHash, isVerifying }) {
+  if (isVerifying) {
+    return (
+      <div className="result-banner-hud scanner-container" style={{ background: 'rgba(255, 255, 255, 0.02)', borderColor: 'var(--violet)', padding: '2.5rem 2rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+        <div className="scanner-line"></div>
+        <div className="loading-spinner-hud" style={{ margin: 0 }}></div>
+        <div style={{ flex: 1 }}>
+          <div className="hud-status-text" style={{ color: '#fff', fontSize: '1.25rem' }}>Running Security Audits</div>
+          <div className="hud-status-reason" style={{ marginTop: '0.4rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            Comparing binary signature hashes and resolving registry ledger status...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!documentId) {
     return (
       <div className="result-banner-hud" style={{ background: 'rgba(255, 255, 255, 0.01)', borderColor: 'var(--border)', padding: '2.5rem 2rem' }}>
@@ -1161,6 +1176,7 @@ function VerifyPage() {
   const [inputDocId, setInputDocId] = useState(routeDocumentId || '');
   const [checkedDocId, setCheckedDocId] = useState(routeDocumentId || '');
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const decoded = useMemo(() => {
     const data = {};
@@ -1201,6 +1217,27 @@ function VerifyPage() {
       active = false;
     };
   }, [uploadedFile]);
+
+  React.useEffect(() => {
+    if (!uploadedFileHash) return;
+    try {
+      const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
+      const allDocs = [...mockDocuments, ...localDocs];
+      const match = allDocs.find(
+        (doc) => doc.issuedHash === uploadedFileHash || doc.originalHash === uploadedFileHash
+      );
+      if (match) {
+        setIsVerifying(true);
+        setTimeout(() => {
+          setInputDocId(match.documentId);
+          setCheckedDocId(match.documentId);
+          setIsVerifying(false);
+        }, 1200);
+      }
+    } catch (e) {
+      console.error('Error auto-matching file hash:', e);
+    }
+  }, [uploadedFileHash]);
 
   const record = useMemo(
     () => {
@@ -1273,7 +1310,14 @@ function VerifyPage() {
             <p className="subtitle">Authenticity verification and cryptographic audit logging console.</p>
           </div>
 
-          <div className="stack-form">
+          <form className="stack-form" onSubmit={(e) => {
+            e.preventDefault();
+            setIsVerifying(true);
+            setTimeout(() => {
+              setCheckedDocId(inputDocId);
+              setIsVerifying(false);
+            }, 1200);
+          }}>
             <div className="form-grid">
               <label className="full-span">
                 <span style={{ display: 'flex', alignItems: 'center' }}>
@@ -1291,20 +1335,19 @@ function VerifyPage() {
               </label>
               
               <button
-                type="button"
+                type="submit"
                 className="btn-primary full-span"
-                onClick={() => setCheckedDocId(inputDocId)}
                 style={{ marginTop: '0.5rem' }}
               >
                 🔍 Verify Document
               </button>
             </div>
-          </div>
+          </form>
         </div>
 
         <div className="preview-container">
           <div className="hud-title">Verification Outcome HUD</div>
-          <VerificationState outcome={outcome} documentId={checkedDocId} record={mergedView} uploadedFile={fileName} uploadedFileHash={uploadedFileHash} />
+          <VerificationState outcome={outcome} documentId={checkedDocId} record={mergedView} uploadedFile={fileName} uploadedFileHash={uploadedFileHash} isVerifying={isVerifying} />
         </div>
       </div>
     </AppLayout>

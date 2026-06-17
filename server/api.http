@@ -1,0 +1,79 @@
+### Universal Secure PDF Verification System API Tests (Public Server Mode)
+@baseUrl = http://localhost:5000
+
+### 1. Root Server Status
+GET {{baseUrl}}/
+Accept: application/json
+
+### 2. Upload & Stamp Academic PDF Document (Public Upload)
+# NOTE: To run this test in VS Code Rest Client, you must have the file "test-sample.pdf" in the same folder.
+# We generated it at d:/QR-Verification/server/test-sample.pdf.
+# @name uploadDoc
+POST {{baseUrl}}/api/documents/upload
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test-sample.pdf"
+Content-Type: application/pdf
+
+< ./test-sample.pdf
+--boundary
+Content-Disposition: form-data; name="documentType"
+
+Academic
+--boundary
+Content-Disposition: form-data; name="studentName"
+
+Guru N
+--boundary
+Content-Disposition: form-data; name="rollNumber"
+
+ROLL-2026-9051
+--boundary
+Content-Disposition: form-data; name="institution"
+
+Guru Academy
+--boundary
+Content-Disposition: form-data; name="course"
+
+Computer Science and Engineering
+--boundary
+Content-Disposition: form-data; name="gradeCgpa"
+
+9.8/10
+--boundary
+Content-Disposition: form-data; name="yearOfPassing"
+
+2026
+--boundary--
+
+### Save Document ID from Upload response
+@documentId = {{uploadDoc.response.body.data.documentId}}
+
+### 3. Get List of Stamped Documents (Public Listing)
+GET {{baseUrl}}/api/documents?page=1&limit=10
+Accept: application/json
+
+### 4. Get Specific Document Detail & Log audits (Public Lookup)
+GET {{baseUrl}}/api/documents/{{documentId}}
+Accept: application/json
+
+### 5. Public Verification of Active Document by ID (Public Access)
+GET {{baseUrl}}/api/verify/{{documentId}}
+Accept: application/json
+
+### 6. Public Verification of Non-existent Document ID (Public Access)
+GET {{baseUrl}}/api/verify/DOC-2026-9999
+Accept: application/json
+
+### 7. Public Revocation (Anyone can revoke in public-only mode)
+PATCH {{baseUrl}}/api/documents/{{documentId}}/revoke
+Content-Type: application/json
+
+{
+  "reason": "Student transcript revised after error detection."
+}
+
+### 8. Public Verification after Document Revocation (Public Access)
+GET {{baseUrl}}/api/verify/{{documentId}}
+Accept: application/json

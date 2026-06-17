@@ -238,7 +238,7 @@ function CustomDropzone({ file, setFile }) {
   );
 }
 
-async function stampPdfWithQr(pdfFile, qrUrl) {
+async function stampPdfWithQr(pdfFile, qrUrl, documentId, issueDate) {
   try {
     const arrayBuffer = await pdfFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer);
@@ -246,34 +246,96 @@ async function stampPdfWithQr(pdfFile, qrUrl) {
     const qrImage = await pdfDoc.embedPng(qrDataUrl);
     
     const pages = pdfDoc.getPages();
-    const firstPage = pages[0];
-    const { width, height } = firstPage.getSize();
+    const lastPage = pages[pages.length - 1];
+    const { width, height } = lastPage.getSize();
     
-    const qrSize = 75;
-    firstPage.drawImage(qrImage, {
-      x: width - qrSize - 25,
-      y: 25,
+    const qrSize = 70;
+    const marginRight = 25;
+    const qrX = width - qrSize - marginRight;
+    const qrY = 45;
+
+    // Draw white background block for readability
+    lastPage.drawRectangle({
+      x: qrX - 5,
+      y: qrY - 35,
+      width: qrSize + 10,
+      height: qrSize + 50,
+      color: rgb(1, 1, 1),
+      opacity: 0.9
+    });
+
+    // Draw QR Code
+    lastPage.drawImage(qrImage, {
+      x: qrX,
+      y: qrY,
       width: qrSize,
       height: qrSize,
     });
     
-    firstPage.drawRectangle({
-      x: width - qrSize - 27,
-      y: 23,
-      width: qrSize + 4,
-      height: qrSize + 4,
+    lastPage.drawRectangle({
+      x: qrX - 1,
+      y: qrY - 1,
+      width: qrSize + 2,
+      height: qrSize + 2,
       borderColor: rgb(0.54, 0.36, 0.96),
       borderWidth: 1.5,
     });
     
-    const helveticaFont = await pdfDoc.embedFont('Helvetica-Bold');
-    firstPage.drawText('VERIFY ORIGINAL', {
-      x: width - qrSize - 25,
-      y: qrSize + 32,
+    const fontBold = await pdfDoc.embedFont('Helvetica-Bold');
+    const fontRegular = await pdfDoc.embedFont('Helvetica');
+    
+    lastPage.drawText('VERIFY ORIGINAL', {
+      x: qrX,
+      y: qrY + qrSize + 6,
       size: 6.5,
-      font: helveticaFont,
+      font: fontBold,
       color: rgb(0.54, 0.36, 0.96),
     });
+
+    if (documentId) {
+      lastPage.drawText(`ID: ${documentId}`, {
+        x: qrX,
+        y: qrY - 10,
+        size: 7,
+        font: fontBold,
+        color: rgb(0.06, 0.09, 0.16)
+      });
+    }
+
+    let hostStr = 'verify.yourdomain.com';
+    try {
+      const parsedUrl = new URL(qrUrl);
+      hostStr = `${parsedUrl.host}${parsedUrl.pathname}`.replace(/\/DOC-\d{4}-\d{4}$/i, '');
+      hostStr = hostStr.split('?')[0];
+      if (hostStr.endsWith('/')) {
+        hostStr = hostStr.slice(0, -1);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    lastPage.drawText(`Verify at: ${hostStr}`, {
+      x: qrX,
+      y: qrY - 19,
+      size: 6,
+      font: fontRegular,
+      color: rgb(0.3, 0.3, 0.3)
+    });
+
+    if (issueDate) {
+      const dateObj = new Date(issueDate);
+      const dateStr = !isNaN(dateObj.getTime()) 
+        ? dateObj.toISOString().slice(0, 10) 
+        : String(issueDate);
+
+      lastPage.drawText(`Issued: ${dateStr}`, {
+        x: qrX,
+        y: qrY - 28,
+        size: 6,
+        font: fontRegular,
+        color: rgb(0.4, 0.4, 0.4)
+      });
+    }
 
     const modifiedPdfBytes = await pdfDoc.save();
     return modifiedPdfBytes;
@@ -281,6 +343,41 @@ async function stampPdfWithQr(pdfFile, qrUrl) {
     console.error('Failed to stamp PDF:', error);
     throw error;
   }
+}
+
+function resolvePdfMetadata(form) {
+  const category = getDocumentCategory(form.documentType);
+  let recipientName = 'Recipient Name';
+  let organization = 'System Authority';
+
+  if (category === 'Academic') {
+    recipientName = form.studentName;
+    organization = form.institution;
+  } else if (category === 'Employment') {
+    recipientName = form.employeeName;
+    organization = form.company;
+  } else if (category === 'Medical Report') {
+    recipientName = form.patientName;
+    organization = form.hospital;
+  } else if (category === 'Invoice') {
+    recipientName = form.payerPayeeName;
+    organization = form.issuer || 'System Authority';
+  } else if (category === 'Legal') {
+    recipientName = form.partyNames;
+    organization = form.notaryName || form.issuer || 'System Authority';
+  } else if (category === 'Government ID') {
+    recipientName = form.idName;
+    organization = form.issuingAuthority;
+  }
+
+  if (!organization || organization === 'System Authority') {
+    organization = form.issuer || 'System Authority';
+  }
+
+  return {
+    recipientName: recipientName || 'Recipient Name',
+    organization: organization || 'System Authority'
+  };
 }
 
 async function createPdfFromScratch(form, qrUrl, documentId) {
@@ -334,21 +431,7 @@ async function createPdfFromScratch(form, qrUrl, documentId) {
       color: rgb(0.1, 0.1, 0.1),
     });
 
-    const recipientName =
-      form.studentName ||
-      form.employeeName ||
-      form.patientName ||
-      form.payerPayeeName ||
-      form.partyNames ||
-      form.idName ||
-      'Recipient Name';
-
-    const organization =
-      form.institution ||
-      form.company ||
-      form.hospital ||
-      form.issuingAuthority ||
-      'Issuing Organization';
+    const { recipientName, organization } = resolvePdfMetadata(form);
 
     page.drawText(`Issued To: ${recipientName}`, {
       x: 80,
@@ -426,13 +509,14 @@ function UploadPage() {
   const [form, setForm] = useState({
     documentType: initialType,
     ...initialFields,
-    studentName: 'Guru N',
-    institution: 'Guru Academy',
-    issueDate: today,
-    issuer: 'System Authority'
+    studentName: '',
+    institution: '',
+    issueDate: '',
+    issuer: ''
   });
   const [pdfFile, setPdfFile] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [securedDoc, setSecuredDoc] = useState(null);
 
   const currentConfig = getDocumentTypeConfig(form.documentType);
   const issuanceFields = getIssuanceFieldSchema(form.documentType);
@@ -487,7 +571,7 @@ function UploadPage() {
 
       let pdfBytes;
       if (pdfFile) {
-        pdfBytes = await stampPdfWithQr(pdfFile, verificationUrl);
+        pdfBytes = await stampPdfWithQr(pdfFile, verificationUrl, nextDocumentId, form.issueDate);
       } else {
         pdfBytes = await createPdfFromScratch(form, verificationUrl, nextDocumentId);
       }
@@ -496,15 +580,30 @@ function UploadPage() {
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = pdfFile ? `stamped-${pdfFile.name}` : `secure-${nextDocumentId}.pdf`;
+      
+      let filename = pdfFile ? `stamped-${pdfFile.name}` : `secure-${nextDocumentId}.pdf`;
+      if (!filename.toLowerCase().endsWith('.pdf')) {
+        filename += '.pdf';
+      }
+      link.download = filename;
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
 
-      navigate(
-        `/verify/${nextDocumentId}?${query.toString()}`
-      );
+      const { recipientName } = resolvePdfMetadata(form);
+
+      const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 250 });
+
+      setSecuredDoc({
+        documentId: nextDocumentId,
+        documentType: form.documentType,
+        recipientName,
+        verificationUrl,
+        qrCodeUrl: qrDataUrl,
+        downloadUrl,
+        query: query.toString()
+      });
     } catch (err) {
       alert('Failed to stamp or generate PDF.');
       console.error(err);
@@ -512,6 +611,107 @@ function UploadPage() {
       setIsGenerating(false);
     }
   };
+
+  if (securedDoc) {
+    return (
+      <AppLayout>
+        <div className="single-panel-layout">
+          <div className="panel-card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+            <div className="status-orb" style={{ color: 'var(--success)', border: '1px solid var(--accent)', margin: '0 auto', textShadow: '0 0 10px rgba(var(--accent-rgb), 0.4)', display: 'grid', placeItems: 'center' }}>
+              ✓
+            </div>
+            <div>
+              <h1 style={{ background: 'linear-gradient(to right, #10b981, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>
+                PDF Secured Successfully!
+              </h1>
+              <p className="subtitle" style={{ fontSize: '1rem', marginTop: '0.5rem' }}>
+                The cryptographic record has been generated and your stamped PDF has been automatically downloaded.
+              </p>
+            </div>
+
+            <div className="hud-details-card" style={{ width: '100%', maxWidth: '500px', background: 'rgba(9, 14, 26, 0.4)', border: '1px solid var(--border)' }}>
+              <div className="hud-details-grid" style={{ textAlign: 'left' }}>
+                <div className="hud-detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span>Document ID</span>
+                  <strong style={{ fontSize: '1.25rem', color: '#fff', fontFamily: 'monospace', letterSpacing: '1px' }}>{securedDoc.documentId}</strong>
+                </div>
+                <div className="hud-detail-item">
+                  <span>Document Type</span>
+                  <strong>{securedDoc.documentType}</strong>
+                </div>
+                <div className="hud-detail-item">
+                  <span>Recipient</span>
+                  <strong>{securedDoc.recipientName}</strong>
+                </div>
+                <div className="hud-detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span>Verification Link</span>
+                  <a href={securedDoc.verificationUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--violet)', textDecoration: 'underline', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                    {`${window.location.origin.replace(/^https?:\/\//, '')}/verify/${securedDoc.documentId}`}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {securedDoc.qrCodeUrl && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ background: '#fff', padding: '10px', borderRadius: '14px', display: 'inline-block' }}>
+                  <img src={securedDoc.qrCodeUrl} alt="Document QR Code" style={{ width: '150px', height: '150px', display: 'block' }} />
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Embedded Stamp QR Code
+                </span>
+              </div>
+            )}
+
+            <div className="success-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.3)' }}
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = securedDoc.downloadUrl;
+                  let filename = pdfFile ? `stamped-${pdfFile.name}` : `secure-${securedDoc.documentId}.pdf`;
+                  if (!filename.toLowerCase().endsWith('.pdf')) {
+                    filename += '.pdf';
+                  }
+                  link.download = filename;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+              >
+                📥 Download PDF
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  navigate(`/verify/${securedDoc.documentId}?${securedDoc.query}`);
+                }}
+              >
+                🔍 Verify Record
+              </button>
+            </div>
+
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: 'var(--muted)', textDecoration: 'underline', fontSize: '0.85rem', cursor: 'pointer', marginTop: '0.5rem' }}
+              onClick={() => {
+                if (securedDoc.downloadUrl) {
+                  URL.revokeObjectURL(securedDoc.downloadUrl);
+                }
+                setSecuredDoc(null);
+              }}
+            >
+              ← Secure another document
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -597,6 +797,20 @@ function UploadPage() {
 }
 
 function VerificationState({ outcome, documentId, record, uploadedFile }) {
+  if (!documentId) {
+    return (
+      <div className="result-banner-hud" style={{ background: 'rgba(255, 255, 255, 0.01)', borderColor: 'var(--border)', padding: '2.5rem 2rem' }}>
+        <div className="status-orb" style={{ color: 'var(--muted)', fontSize: '2rem' }}>?</div>
+        <div>
+          <div className="hud-status-text" style={{ color: '#fff', fontSize: '1.25rem' }}>Ready for verification</div>
+          <div className="hud-status-reason" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+            Enter a valid Document ID on the left and click the **Verify Document** button to run cryptographic audits.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const view = getVerificationRecordView({ documentId, record, uploadedFile });
 
   if (outcome === 'missing') {
@@ -711,10 +925,12 @@ function ResultDetails({ view }) {
   const verificationCategory = getDocumentCategory(view.documentType);
   const verificationTimestamp = view.verificationTimestamp || new Date().toLocaleString();
   const fieldSchema = getVerificationFieldSchema(view.documentType);
-  const fields = fieldSchema.map((field) => ({
-    label: field.label,
-    value: field.keys.map((key) => view[key]).find((value) => Boolean(value)) || 'N/A'
-  }));
+  const fields = fieldSchema
+    .map((field) => ({
+      label: field.label,
+      value: field.keys.map((key) => view[key]).find((value) => Boolean(value)) || ''
+    }))
+    .filter((field) => field.value !== '' && field.value.toUpperCase() !== 'N/A');
 
   return (
     <div className="hud-details-card">
@@ -762,12 +978,16 @@ function ResultDetails({ view }) {
 function VerifyPage() {
   const { documentId: routeDocumentId } = useParams();
   const [searchParams] = useSearchParams();
-  const [documentId, setDocumentId] = useState(routeDocumentId || 'DOC-2026-0001');
+  const [inputDocId, setInputDocId] = useState(routeDocumentId || '');
+  const [checkedDocId, setCheckedDocId] = useState(routeDocumentId || '');
   const [uploadedFile, setUploadedFile] = useState(null);
 
   const record = useMemo(
-    () => mockDocuments.find((item) => item.documentId.toLowerCase() === documentId.toLowerCase()),
-    [documentId]
+    () => {
+      if (!checkedDocId) return null;
+      return mockDocuments.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
+    },
+    [checkedDocId]
   );
 
   const fileName = uploadedFile?.name || uploadedFile || '';
@@ -808,14 +1028,15 @@ function VerifyPage() {
     validityDate: searchParams.get('validityDate') || record?.validityDate,
     originalHash: record?.originalHash || searchParams.get('originalHash') || '',
     issuedHash: record?.issuedHash || searchParams.get('issuedHash') || '',
-    fullName: searchParams.get('name') || record?.recipientName || 'Aarav Mehta'
+    fullName: searchParams.get('name') || record?.recipientName || ''
   };
-  const hasQueryMetadata = ['name', 'issuer', 'type', 'issueDate', 'uploadDate', 'originalHash', 'issuedHash'].some((key) => searchParams.get(key));
+  const hasQueryMetadata = ['name', 'issuer', 'type', 'issueDate', 'uploadDate', 'originalHash', 'issuedHash'].some((key) => searchParams.get(key)) &&
+    (searchParams.get('documentId')?.toLowerCase() === checkedDocId?.toLowerCase());
   const verificationRecord = record || (hasQueryMetadata ? queryDrivenRecord : null);
   const outcome = getVerificationOutcome({ record: verificationRecord, fileName });
   const verificationTimestamp = new Date().toLocaleString();
-  const detailedView = getVerificationRecordView({ documentId, record: verificationRecord, uploadedFile: fileName });
-  const mergedView = { ...detailedView, ...queryDrivenRecord, verificationTimestamp };
+  const detailedView = getVerificationRecordView({ documentId: checkedDocId, record: verificationRecord, uploadedFile: fileName });
+  const mergedView = { ...detailedView, ...(hasQueryMetadata ? queryDrivenRecord : {}), verificationTimestamp };
 
   return (
     <AppLayout>
@@ -833,7 +1054,7 @@ function VerifyPage() {
                   Document ID
                   <Tooltip text="The unique registration identifier of the document to pull registry details from the secure ledger." />
                 </span>
-                <input value={documentId} onChange={(event) => setDocumentId(event.target.value)} placeholder="DOC-2026-0001" />
+                <input value={inputDocId} onChange={(event) => setInputDocId(event.target.value)} placeholder="DOC-2026-0001" />
               </label>
               <label className="full-span">
                 <span style={{ display: 'flex', alignItems: 'center' }}>
@@ -842,13 +1063,22 @@ function VerifyPage() {
                 </span>
                 <CustomDropzone file={uploadedFile} setFile={setUploadedFile} />
               </label>
+              
+              <button
+                type="button"
+                className="btn-primary full-span"
+                onClick={() => setCheckedDocId(inputDocId)}
+                style={{ marginTop: '0.5rem' }}
+              >
+                🔍 Verify Document
+              </button>
             </div>
           </div>
         </div>
 
         <div className="preview-container">
           <div className="hud-title">Verification Outcome HUD</div>
-          <VerificationState outcome={outcome} documentId={documentId} record={mergedView} uploadedFile={fileName} />
+          <VerificationState outcome={outcome} documentId={checkedDocId} record={mergedView} uploadedFile={fileName} />
         </div>
       </div>
     </AppLayout>

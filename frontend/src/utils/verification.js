@@ -1,5 +1,10 @@
 export function getNextDocumentId(records) {
-  return `DOC-2026-${String(records.length + 1).padStart(4, '0')}`;
+  let count = parseInt(localStorage.getItem('doc_counter'), 10);
+  if (isNaN(count)) {
+    count = (records?.length || 4) + 1;
+  }
+  localStorage.setItem('doc_counter', String(count + 1));
+  return `DOC-2026-${String(count).padStart(4, '0')}`;
 }
 
 export function getVerificationOutcome({ record, fileName }) {
@@ -20,9 +25,9 @@ export function getVerificationOutcome({ record, fileName }) {
 
 export function getVerificationRecordView({ documentId, record, uploadedFile }) {
   const fallback = {
-    issuer: 'Aarav Mehta',
-    recipientName: 'Aarav Mehta',
-    email: 'aarav@example.com',
+    issuer: 'System Authority',
+    recipientName: 'Recipient Name',
+    email: 'recipient@example.com',
     documentType: 'Certificate',
     issueDate: '2026-06-15',
     uploadDate: '2026-06-15',
@@ -45,14 +50,14 @@ export function getVerificationRecordView({ documentId, record, uploadedFile }) 
     details.partyNames ||
     details.idName ||
     details.issuer ||
-    'Aarav Mehta';
+    'Recipient Name';
 
   return {
     ...details,
     documentId,
     userName,
     issuer: details.issuer || userName,
-    email: details.email || 'aarav@example.com',
+    email: details.email || 'recipient@example.com',
     documentType: details.documentType || 'Certificate',
     issueDate: details.issueDate || '2026-06-15',
     uploadDate: details.uploadDate || details.issueDate || '2026-06-15',

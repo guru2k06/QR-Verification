@@ -921,3 +921,19 @@ input:focus, select:focus {
   transform: none !important;
   box-shadow: none !important;
 }
+
+/* Success Screen Actions container */
+.success-actions {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  max-width: 500px;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .success-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}

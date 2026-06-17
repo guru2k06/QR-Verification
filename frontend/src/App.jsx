@@ -312,7 +312,11 @@ function CustomDropzone({ file, setFile }) {
           <button
             type="button"
             className="remove-file-btn"
-            onClick={() => setFile(null)}
+            onClick={() => {
+              setFile(null);
+              const inputEl = document.getElementById(inputId);
+              if (inputEl) inputEl.value = '';
+            }}
           >
             ✕
           </button>

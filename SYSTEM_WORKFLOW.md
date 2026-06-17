@@ -91,7 +91,7 @@ sequenceDiagram
 The backend mirrors the client-side logic but persists data securely to MongoDB:
 
 1. **Database Models (`/models`)**:
-   - `User`: Handles issuer and admin accounts with passwords hashed via `bcryptjs`.
+   - `User`: Handles issuer accounts with passwords hashed via `bcryptjs`.
    - `Document`: Holds document metadata, `originalHash`, `issuedHash`, QR URL, and a `typeSpecificData` mixed object.
    - `VerificationRecord`: Logs every public verification request (IP address, user agent, timestamp) for audit trail tracking.
 

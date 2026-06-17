@@ -254,6 +254,55 @@ function AppLayout({ children }) {
   );
 }
 
+/* Helper functions to encrypt/decrypt query metadata to avoid exposing it in the URL */
+export function encryptPayload(payloadObj) {
+  try {
+    const jsonStr = JSON.stringify(payloadObj);
+    const utf8Bytes = new TextEncoder().encode(jsonStr);
+    const key = [83, 101, 99, 117, 114, 101, 80, 68, 70, 86, 101, 114, 105, 102, 121]; // "SecurePDFVerify"
+    const obfuscatedBytes = new Uint8Array(utf8Bytes.length);
+    for (let i = 0; i < utf8Bytes.length; i++) {
+      obfuscatedBytes[i] = utf8Bytes[i] ^ key[i % key.length];
+    }
+    let binary = '';
+    const len = obfuscatedBytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(obfuscatedBytes[i]);
+    }
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  } catch (e) {
+    console.error('Failed to encrypt payload:', e);
+    return '';
+  }
+}
+
+export function decryptPayload(token) {
+  try {
+    if (!token) return {};
+    let base64 = token.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const key = [83, 101, 99, 117, 114, 101, 80, 68, 70, 86, 101, 114, 105, 102, 121]; // "SecurePDFVerify"
+    const utf8Bytes = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) {
+      utf8Bytes[i] = bytes[i] ^ key[i % key.length];
+    }
+    return JSON.parse(new TextDecoder().decode(utf8Bytes));
+  } catch (e) {
+    console.error('Failed to decrypt payload:', e);
+    return {};
+  }
+}
+
 /* Reusable Interactive Drag and Drop File Zone */
 function CustomDropzone({ file, setFile }) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -280,6 +329,7 @@ function CustomDropzone({ file, setFile }) {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+    e.target.value = ''; // Crucial: clear value to allow consecutive selection of the same file
   };
 
   return (
@@ -288,7 +338,13 @@ function CustomDropzone({ file, setFile }) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => document.getElementById(inputId).click()}
+      onClick={(e) => {
+        // Only trigger programmatic click if target clicked is NOT the input element itself
+        if (e.target.tagName !== 'INPUT') {
+          const inputEl = document.getElementById(inputId);
+          if (inputEl) inputEl.click();
+        }
+      }}
     >
       <input
         id={inputId}
@@ -296,6 +352,7 @@ function CustomDropzone({ file, setFile }) {
         accept="application/pdf"
         style={{ display: 'none' }}
         onChange={handleFileChange}
+        onClick={(e) => e.stopPropagation()} // Stop propagation to prevent duplicate click events
       />
       
       {file ? (
@@ -690,7 +747,7 @@ function UploadPage() {
         }
       });
 
-      const tempQuery = new URLSearchParams();
+      const tempQueryMap = {};
       for (const [key, val] of Object.entries(queryParamsMap)) {
         if (val === undefined || val === null || val === '') continue;
         const shortKey = SHORT_KEYS[key] || key;
@@ -698,10 +755,11 @@ function UploadPage() {
         if ((key === 'originalHash' || key === 'issuedHash') && val.length === 64) {
           finalVal = hexToBase64Url(val);
         }
-        tempQuery.set(shortKey, finalVal);
+        tempQueryMap[shortKey] = finalVal;
       }
 
-      const tempVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?${tempQuery.toString()}`;
+      const tempToken = encryptPayload(tempQueryMap);
+      const tempVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?d=${tempToken}`;
 
       let pdfBytes;
       if (pdfFile) {
@@ -716,7 +774,7 @@ function UploadPage() {
       // Re-generate query params with the real cryptographic issuedHash
       queryParamsMap.issuedHash = issuedHash;
 
-      const finalQuery = new URLSearchParams();
+      const finalQueryMap = {};
       for (const [key, val] of Object.entries(queryParamsMap)) {
         if (val === undefined || val === null || val === '') continue;
         const shortKey = SHORT_KEYS[key] || key;
@@ -724,10 +782,11 @@ function UploadPage() {
         if ((key === 'originalHash' || key === 'issuedHash') && val.length === 64) {
           finalVal = hexToBase64Url(val);
         }
-        finalQuery.set(shortKey, finalVal);
+        finalQueryMap[shortKey] = finalVal;
       }
 
-      const finalVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?${finalQuery.toString()}`;
+      const finalToken = encryptPayload(finalQueryMap);
+      const finalVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?d=${finalToken}`;
 
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const downloadUrl = URL.createObjectURL(blob);
@@ -778,7 +837,7 @@ function UploadPage() {
         verificationUrl: finalVerificationUrl,
         qrCodeUrl: qrDataUrl,
         downloadUrl,
-        query: finalQuery.toString()
+        query: `d=${finalToken}`
       });
     } catch (err) {
       alert('Failed to stamp or generate PDF.');
@@ -1182,12 +1241,29 @@ function VerifyPage() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
+  const [backendRecord, setBackendRecord] = useState(null);
+
   const decoded = useMemo(() => {
+    const token = searchParams.get('d');
+    if (!token) {
+      const data = {};
+      for (const [key, value] of searchParams.entries()) {
+        const longKey = LONG_KEYS[key] || key;
+        let finalVal = value;
+        if ((longKey === 'originalHash' || longKey === 'issuedHash') && value.length === 43) {
+          finalVal = base64UrlToHex(value);
+        }
+        data[longKey] = finalVal;
+      }
+      return data;
+    }
+
+    const rawPayload = decryptPayload(token);
     const data = {};
-    for (const [key, value] of searchParams.entries()) {
+    for (const [key, value] of Object.entries(rawPayload)) {
       const longKey = LONG_KEYS[key] || key;
       let finalVal = value;
-      if ((longKey === 'originalHash' || longKey === 'issuedHash') && value.length === 43) {
+      if ((longKey === 'originalHash' || longKey === 'issuedHash') && value && value.length === 43) {
         finalVal = base64UrlToHex(value);
       }
       data[longKey] = finalVal;
@@ -1223,6 +1299,47 @@ function VerifyPage() {
   }, [uploadedFile]);
 
   React.useEffect(() => {
+    if (!checkedDocId) {
+      setBackendRecord(null);
+      return;
+    }
+
+    let localDocs = [];
+    try {
+      localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
+    } catch (e) {}
+    const allDocs = [...mockDocuments, ...localDocs];
+    const localMatch = allDocs.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
+    
+    if (localMatch) {
+      setBackendRecord(null);
+      return;
+    }
+
+    let active = true;
+    const fetchDoc = async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/verify/${checkedDocId}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && active) {
+            setBackendRecord(json.data);
+          }
+        } else {
+          if (active) setBackendRecord(null);
+        }
+      } catch (err) {
+        console.warn('Backend server is offline or document not found on backend:', err);
+        if (active) setBackendRecord(null);
+      }
+    };
+    fetchDoc();
+    return () => {
+      active = false;
+    };
+  }, [checkedDocId]);
+
+  React.useEffect(() => {
     if (!uploadedFileHash) return;
     try {
       const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
@@ -1230,13 +1347,22 @@ function VerifyPage() {
       const match = allDocs.find(
         (doc) => doc.issuedHash === uploadedFileHash || doc.originalHash === uploadedFileHash
       );
+      
+      let targetDocId = '';
       if (match) {
+        targetDocId = match.documentId;
+      } else if (inputDocId) {
+        targetDocId = inputDocId;
+      }
+
+      if (targetDocId) {
         setIsVerifying(true);
-        setTimeout(() => {
-          setInputDocId(match.documentId);
-          setCheckedDocId(match.documentId);
+        const timer = setTimeout(() => {
+          setInputDocId(targetDocId);
+          setCheckedDocId(targetDocId);
           setIsVerifying(false);
         }, 1200);
+        return () => clearTimeout(timer);
       }
     } catch (e) {
       console.error('Error auto-matching file hash:', e);
@@ -1249,12 +1375,12 @@ function VerifyPage() {
       try {
         const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
         const allDocs = [...mockDocuments, ...localDocs];
-        return allDocs.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
-      } catch (e) {
-        return mockDocuments.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
-      }
+        const localMatch = allDocs.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
+        if (localMatch) return localMatch;
+      } catch (e) {}
+      return backendRecord || null;
     },
-    [checkedDocId]
+    [checkedDocId, backendRecord]
   );
 
   const fileName = uploadedFile?.name || uploadedFile || '';

@@ -13,26 +13,12 @@ const generateToken = (user) => {
   );
 };
 
-// @desc    Register a new user (admin-only or bootstrap/empty DB)
+// @desc    Register a new user
 // @route   POST /api/auth/register
-// @access  Protected (Admin only) / Public (Bootstrap only)
+// @access  Public
 const register = async (req, res, next) => {
   try {
     const { name, email, password, role, organization } = req.body;
-
-    // Check if the database has any users
-    const userCount = await User.countDocuments();
-
-    // If there are users in the DB, enforce admin privilege
-    if (userCount > 0) {
-      // Check if logged-in user is an admin
-      if (!req.user || req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Not authorized to register new users. Only admins can perform this action.'
-        });
-      }
-    }
 
     // Check if email already exists
     const userExists = await User.findOne({ email });

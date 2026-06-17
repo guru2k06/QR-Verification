@@ -3,7 +3,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { mockDocuments } from './data/mockDocuments';
 import { getNextDocumentId, getVerificationOutcome, getVerificationRecordView } from './utils/verification';
 import Tooltip from './components/Tooltip';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, PDFName, PDFString } from 'pdf-lib';
 import QRCode from 'qrcode';
 
 const DOCUMENT_TYPE_CONFIG = {
@@ -32,32 +32,32 @@ const ISSUANCE_FIELD_SCHEMAS = {
     { key: 'employeeName', label: 'Employee name', placeholder: 'Full employee name', tooltip: 'Official full name of the employee.' },
     { key: 'designation', label: 'Designation', placeholder: 'Job title', tooltip: 'The job title or role held by the employee.' },
     { key: 'company', label: 'Company', placeholder: 'Organization name', tooltip: 'The employing organization or business entity.' },
-    { key: 'joiningRelievingDate', label: 'Date of joining / relieving', placeholder: 'YYYY-MM-DD', tooltip: 'Start or end date of the employment contract.' }
+    { key: 'joiningRelievingDate', label: 'Date of joining / relieving', placeholder: 'YYYY-MM-DD', tooltip: 'Start or end date of the employment contract.', type: 'date' }
   ],
   'Medical Report': [
     { key: 'patientName', label: 'Patient name', placeholder: 'Patient name or masked name', tooltip: 'Full name or masked privacy code for the patient.' },
     { key: 'hospital', label: 'Hospital', placeholder: 'Hospital or clinic name', tooltip: 'The medical facility where tests were conducted.' },
     { key: 'reportType', label: 'Report type', placeholder: 'Blood test, X-ray, etc.', tooltip: 'The specific type of clinical examination.' },
-    { key: 'reportDate', label: 'Report date', placeholder: 'YYYY-MM-DD', tooltip: 'Date the clinical medical report was issued.' }
+    { key: 'reportDate', label: 'Report date', placeholder: 'YYYY-MM-DD', tooltip: 'Date the clinical medical report was issued.', type: 'date' }
   ],
   Invoice: [
     { key: 'invoiceNumber', label: 'Invoice number', placeholder: 'INV-0001', tooltip: 'The unique auditing serial number for this invoice.' },
     { key: 'payerPayeeName', label: 'Payer / payee name', placeholder: 'Customer or vendor name', tooltip: 'Name of customer or vendor billing entity.' },
     { key: 'amount', label: 'Amount', placeholder: 'Total amount', tooltip: 'Total financial amount payable on this invoice.' },
     { key: 'gstin', label: 'GSTIN', placeholder: 'Tax identifier', tooltip: 'The tax registration number (GSTIN).' },
-    { key: 'dueDate', label: 'Due date', placeholder: 'YYYY-MM-DD', tooltip: 'The final date for payment settlement.' }
+    { key: 'dueDate', label: 'Due date', placeholder: 'YYYY-MM-DD', tooltip: 'The final date for payment settlement.', type: 'date' }
   ],
   Legal: [
     { key: 'partyNames', label: 'Party names', placeholder: 'Primary parties', tooltip: 'Primary legal parties executing this contract.' },
     { key: 'legalDocumentType', label: 'Document type', placeholder: 'Agreement, deed, affidavit...', tooltip: 'Specific legal document classification.' },
     { key: 'notaryName', label: 'Notary / advocate name', placeholder: 'Name of verifying professional', tooltip: 'The notary or lawyer certifying document execution.' },
-    { key: 'executionDate', label: 'Date of execution', placeholder: 'YYYY-MM-DD', tooltip: 'The date this legal record becomes binding.' }
+    { key: 'executionDate', label: 'Date of execution', placeholder: 'YYYY-MM-DD', tooltip: 'The date this legal record becomes binding.', type: 'date' }
   ],
   'Government ID': [
     { key: 'idName', label: 'Name', placeholder: 'Name on the ID', tooltip: 'The official name listed on the identification card.' },
     { key: 'idDocumentType', label: 'Document type', placeholder: 'Aadhaar, passport, etc.', tooltip: 'The official identity document type.' },
     { key: 'issuingAuthority', label: 'Issuing authority', placeholder: 'Authority or department', tooltip: 'Government department that authorized this ID.' },
-    { key: 'validityDate', label: 'Validity date', placeholder: 'YYYY-MM-DD', tooltip: 'Document validity expiration date.' }
+    { key: 'validityDate', label: 'Validity date', placeholder: 'YYYY-MM-DD', tooltip: 'Document validity expiration date.', type: 'date' }
   ]
 };
 
@@ -123,14 +123,108 @@ function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function generateSha256Hex(text) {
+async function generateSha256Hex(data) {
+  const inputBuffer = typeof data === 'string'
+    ? new TextEncoder().encode(data)
+    : data;
   if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    const buffer = await crypto.subtle.digest('SHA-256', inputBuffer);
     return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
-  return `sha256-${btoa(unescape(encodeURIComponent(text))).slice(0, 24)}`;
+  let binaryString = '';
+  if (typeof data === 'string') {
+    binaryString = unescape(encodeURIComponent(data));
+  } else {
+    const bytes = new Uint8Array(data);
+    for (let i = 0; i < bytes.length; i++) {
+      binaryString += String.fromCharCode(bytes[i]);
+    }
+  }
+  return `sha256-${btoa(binaryString).slice(0, 24)}`;
 }
+
+const SHORT_KEYS = {
+  documentId: 'id',
+  documentType: 't',
+  type: 't',
+  issueDate: 'idat',
+  uploadDate: 'udat',
+  issuer: 'is',
+  originalHash: 'oh',
+  issuedHash: 'ih',
+  file: 'f',
+  studentName: 'sn',
+  rollNumber: 'rn',
+  institution: 'in',
+  course: 'co',
+  gradeCgpa: 'gr',
+  yearOfPassing: 'yp',
+  employeeName: 'en',
+  designation: 'de',
+  company: 'cp',
+  joiningRelievingDate: 'jd',
+  patientName: 'pn',
+  hospital: 'hp',
+  reportType: 'rt',
+  reportDate: 'rd',
+  invoiceNumber: 'iv',
+  payerPayeeName: 'pp',
+  amount: 'am',
+  gstin: 'gt',
+  dueDate: 'dd',
+  partyNames: 'pt',
+  legalDocumentType: 'lt',
+  notaryName: 'nn',
+  executionDate: 'ed',
+  idName: 'inm',
+  idDocumentType: 'idt',
+  issuingAuthority: 'ia',
+  validityDate: 'vd'
+};
+
+const LONG_KEYS = Object.fromEntries(
+  Object.entries(SHORT_KEYS).map(([long, short]) => [short, long])
+);
+
+function hexToBase64Url(hex) {
+  if (!hex || hex.length !== 64) return hex;
+  try {
+    const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  } catch (e) {
+    return hex;
+  }
+}
+
+function base64UrlToHex(base64url) {
+  if (!base64url || base64url.length !== 43) return base64url;
+  try {
+    let base64 = base64url
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const binary = atob(base64);
+    let hex = '';
+    for (let i = 0; i < binary.length; i++) {
+      const code = binary.charCodeAt(i);
+      hex += code.toString(16).padStart(2, '0');
+    }
+    return hex;
+  } catch (e) {
+    return base64url;
+  }
+}
+
 
 function AppLayout({ children }) {
   const location = useLocation();
@@ -238,6 +332,31 @@ function CustomDropzone({ file, setFile }) {
   );
 }
 
+function addLinkToPage(pdfDoc, page, url, x, y, width, height) {
+  try {
+    const linkAnnot = pdfDoc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [x, y, x + width, y + height],
+      Border: [0, 0, 0],
+      A: {
+        Type: 'Action',
+        S: 'URI',
+        URI: PDFString.of(url)
+      }
+    });
+    const linkAnnotRef = pdfDoc.context.register(linkAnnot);
+    let annots = page.node.get(PDFName.of('Annots'));
+    if (annots) {
+      annots.push(linkAnnotRef);
+    } else {
+      page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([linkAnnotRef]));
+    }
+  } catch (e) {
+    console.error('Failed to add hyperlink annotation:', e);
+  }
+}
+
 async function stampPdfWithQr(pdfFile, qrUrl, documentId, issueDate) {
   try {
     const arrayBuffer = await pdfFile.arrayBuffer();
@@ -305,7 +424,7 @@ async function stampPdfWithQr(pdfFile, qrUrl, documentId, issueDate) {
     let hostStr = 'verify.yourdomain.com';
     try {
       const parsedUrl = new URL(qrUrl);
-      hostStr = `${parsedUrl.host}${parsedUrl.pathname}`.replace(/\/DOC-\d{4}-\d{4}$/i, '');
+      hostStr = `${parsedUrl.host}${parsedUrl.pathname}`.replace(/\/[a-zA-Z0-9_-]+$/i, '');
       hostStr = hostStr.split('?')[0];
       if (hostStr.endsWith('/')) {
         hostStr = hostStr.slice(0, -1);
@@ -336,6 +455,9 @@ async function stampPdfWithQr(pdfFile, qrUrl, documentId, issueDate) {
         color: rgb(0.4, 0.4, 0.4)
       });
     }
+
+    addLinkToPage(pdfDoc, lastPage, qrUrl, qrX, qrY, qrSize, qrSize);
+    addLinkToPage(pdfDoc, lastPage, qrUrl, qrX, qrY - 22, qrSize, 12);
 
     const modifiedPdfBytes = await pdfDoc.save();
     return modifiedPdfBytes;
@@ -491,6 +613,9 @@ async function createPdfFromScratch(form, qrUrl, documentId) {
       color: rgb(0.5, 0.5, 0.5),
     });
 
+    addLinkToPage(pdfDoc, page, qrUrl, (width - qrSize) / 2, height - 490, qrSize, qrSize);
+    addLinkToPage(pdfDoc, page, qrUrl, 160, height - 525, 280, 18);
+
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
   } catch (error) {
@@ -533,48 +658,72 @@ function UploadPage() {
     setIsGenerating(true);
     try {
       const nextDocumentId = getNextDocumentId(mockDocuments);
-      const pdfName = pdfFile ? pdfFile.name : 'selected-document.pdf';
-      const originalHash = await generateSha256Hex([
-        nextDocumentId,
-        form.documentType,
-        ...issuanceFields.map((field) => form[field.key] || ''),
-        form.issueDate,
-        pdfName,
-        'original'
-      ].join('|'));
-      const issuedHash = await generateSha256Hex([
-        nextDocumentId,
-        form.documentType,
-        ...issuanceFields.map((field) => form[field.key] || ''),
-        form.issueDate,
-        pdfName,
-        'issued'
-      ].join('|'));
+      const pdfName = pdfFile ? pdfFile.name : `secure-${nextDocumentId}.pdf`;
+
+      let originalHash;
+      if (pdfFile) {
+        const arrayBuffer = await pdfFile.arrayBuffer();
+        originalHash = await generateSha256Hex(arrayBuffer);
+      } else {
+        const mockInput = [nextDocumentId, form.documentType, form.issueDate, today].join('|');
+        originalHash = await generateSha256Hex(mockInput);
+      }
       
-      const query = new URLSearchParams();
-      query.set('documentId', nextDocumentId);
-      query.set('type', form.documentType);
-      query.set('issueDate', form.issueDate);
-      query.set('uploadDate', today);
-      query.set('verificationUrl', `https://verify.yourdomain.com/doc/${nextDocumentId}`);
-      query.set('issuer', form.issuer || 'System Authority');
+      const queryParamsMap = {
+        documentId: nextDocumentId,
+        type: form.documentType,
+        issueDate: form.issueDate,
+        uploadDate: today,
+        issuer: form.issuer || 'System Authority',
+        originalHash,
+        issuedHash: originalHash, // Temporary placeholder for QR code URL
+        file: pdfName
+      };
+
       issuanceFields.forEach((field) => {
         if (form[field.key]) {
-          query.set(field.key, form[field.key]);
+          queryParamsMap[field.key] = form[field.key];
         }
       });
-      query.set('originalHash', originalHash);
-      query.set('issuedHash', issuedHash);
-      query.set('file', pdfName);
 
-      const verificationUrl = `${window.location.origin}/verify/${nextDocumentId}?${query.toString()}`;
+      const tempQuery = new URLSearchParams();
+      for (const [key, val] of Object.entries(queryParamsMap)) {
+        if (val === undefined || val === null || val === '') continue;
+        const shortKey = SHORT_KEYS[key] || key;
+        let finalVal = val;
+        if ((key === 'originalHash' || key === 'issuedHash') && val.length === 64) {
+          finalVal = hexToBase64Url(val);
+        }
+        tempQuery.set(shortKey, finalVal);
+      }
+
+      const tempVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?${tempQuery.toString()}`;
 
       let pdfBytes;
       if (pdfFile) {
-        pdfBytes = await stampPdfWithQr(pdfFile, verificationUrl, nextDocumentId, form.issueDate);
+        pdfBytes = await stampPdfWithQr(pdfFile, tempVerificationUrl, nextDocumentId, form.issueDate);
       } else {
-        pdfBytes = await createPdfFromScratch(form, verificationUrl, nextDocumentId);
+        pdfBytes = await createPdfFromScratch(form, tempVerificationUrl, nextDocumentId);
       }
+
+      // Compute actual issuedHash of the stamped PDF
+      const issuedHash = await generateSha256Hex(pdfBytes);
+
+      // Re-generate query params with the real cryptographic issuedHash
+      queryParamsMap.issuedHash = issuedHash;
+
+      const finalQuery = new URLSearchParams();
+      for (const [key, val] of Object.entries(queryParamsMap)) {
+        if (val === undefined || val === null || val === '') continue;
+        const shortKey = SHORT_KEYS[key] || key;
+        let finalVal = val;
+        if ((key === 'originalHash' || key === 'issuedHash') && val.length === 64) {
+          finalVal = hexToBase64Url(val);
+        }
+        finalQuery.set(shortKey, finalVal);
+      }
+
+      const finalVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?${finalQuery.toString()}`;
 
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const downloadUrl = URL.createObjectURL(blob);
@@ -593,16 +742,39 @@ function UploadPage() {
 
       const { recipientName } = resolvePdfMetadata(form);
 
-      const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 250 });
+      const qrDataUrl = await QRCode.toDataURL(finalVerificationUrl, { margin: 1, width: 250 });
+
+      // Save to localStorage registered_documents
+      const newDocRecord = {
+        documentId: nextDocumentId,
+        fileName: pdfName,
+        issuer: form.issuer || 'System Authority',
+        recipientName,
+        documentType: form.documentType,
+        issueDate: form.issueDate,
+        status: 'Active',
+        verificationCount: 0,
+        uploadDate: today,
+        originalHash,
+        issuedHash,
+        qrCodeUrl: finalVerificationUrl
+      };
+      try {
+        const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
+        localDocs.push(newDocRecord);
+        localStorage.setItem('registered_documents', JSON.stringify(localDocs));
+      } catch (e) {
+        console.error('Failed to save to localStorage:', e);
+      }
 
       setSecuredDoc({
         documentId: nextDocumentId,
         documentType: form.documentType,
         recipientName,
-        verificationUrl,
+        verificationUrl: finalVerificationUrl,
         qrCodeUrl: qrDataUrl,
         downloadUrl,
-        query: query.toString()
+        query: finalQuery.toString()
       });
     } catch (err) {
       alert('Failed to stamp or generate PDF.');
@@ -750,6 +922,7 @@ function UploadPage() {
                     {field.tooltip && <Tooltip text={field.tooltip} />}
                   </span>
                   <input
+                    type={field.type || 'text'}
                     value={form[field.key]}
                     placeholder={field.placeholder}
                     onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
@@ -796,7 +969,7 @@ function UploadPage() {
   );
 }
 
-function VerificationState({ outcome, documentId, record, uploadedFile }) {
+function VerificationState({ outcome, documentId, record, uploadedFile, uploadedFileHash }) {
   if (!documentId) {
     return (
       <div className="result-banner-hud" style={{ background: 'rgba(255, 255, 255, 0.01)', borderColor: 'var(--border)', padding: '2.5rem 2rem' }}>
@@ -831,6 +1004,8 @@ function VerificationState({ outcome, documentId, record, uploadedFile }) {
   }
 
   if (outcome === 'flagged') {
+    const isIdMismatch = uploadedFile?.name && !uploadedFile.name.toLowerCase().includes(documentId.toLowerCase());
+
     return (
       <div className="result-banner-hud hud-danger scanner-container">
         <div className="scanner-line"></div>
@@ -846,6 +1021,11 @@ function VerificationState({ outcome, documentId, record, uploadedFile }) {
           <div className="hud-status-reason" style={{ marginTop: '0.25rem' }}>
             Reason: Binary fingerprint does not match the registered stamp.
           </div>
+          {isIdMismatch && (
+            <div className="hud-status-reason" style={{ marginTop: '0.5rem', color: '#f59e0b', fontWeight: 'bold', background: 'rgba(245, 158, 11, 0.1)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+              ⚠️ ID Mismatch: The uploaded filename does not contain the queried Document ID: {documentId.toUpperCase()}.
+            </div>
+          )}
         </div>
 
         <details className="advanced-crypto-details" style={{ width: '100%' }}>
@@ -853,12 +1033,12 @@ function VerificationState({ outcome, documentId, record, uploadedFile }) {
           <div className="hash-comparison-card" style={{ marginTop: '0.5rem' }}>
             <div className="hash-row">
               <span>Registered Stamp Hash</span>
-              <div className="hash-code">{view.originalHash || 'b4c6f3c4a1e6f4c0a0e8f6b2d8d9c6f3...'}</div>
+              <div className="hash-code">{view.issuedHash || view.originalHash || 'b4c6f3c4a1e6f4c0a0e8f6b2d8d9c6f3...'}</div>
             </div>
             <div className="hash-row">
               <span>Uploaded File Hash</span>
               <div className="hash-code" style={{ color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.08)' }}>
-                {view.issuedHash ? view.issuedHash.replace(/.$/, 'a') : 'f4a6b3c4d1e2f4c0a0e8f6b2d8d9c6f3...'} (MISMATCH)
+                {uploadedFileHash || (view.issuedHash ? view.issuedHash.replace(/.$/, 'a') : 'f4a6b3c4d1e2f4c0a0e8f6b2d8d9c6f3...')} (MISMATCH)
               </div>
             </div>
           </div>
@@ -982,10 +1162,56 @@ function VerifyPage() {
   const [checkedDocId, setCheckedDocId] = useState(routeDocumentId || '');
   const [uploadedFile, setUploadedFile] = useState(null);
 
+  const decoded = useMemo(() => {
+    const data = {};
+    for (const [key, value] of searchParams.entries()) {
+      const longKey = LONG_KEYS[key] || key;
+      let finalVal = value;
+      if ((longKey === 'originalHash' || longKey === 'issuedHash') && value.length === 43) {
+        finalVal = base64UrlToHex(value);
+      }
+      data[longKey] = finalVal;
+    }
+    return data;
+  }, [searchParams]);
+
+  const [uploadedFileHash, setUploadedFileHash] = useState('');
+
+  React.useEffect(() => {
+    if (!uploadedFile) {
+      setUploadedFileHash('');
+      return;
+    }
+    let active = true;
+    const getHash = async () => {
+      try {
+        const arrayBuffer = typeof uploadedFile.arrayBuffer === 'function'
+          ? await uploadedFile.arrayBuffer()
+          : await new Response(uploadedFile).arrayBuffer();
+        const hash = await generateSha256Hex(arrayBuffer);
+        if (active) {
+          setUploadedFileHash(hash);
+        }
+      } catch (err) {
+        console.error('Error computing hash:', err);
+      }
+    };
+    getHash();
+    return () => {
+      active = false;
+    };
+  }, [uploadedFile]);
+
   const record = useMemo(
     () => {
       if (!checkedDocId) return null;
-      return mockDocuments.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
+      try {
+        const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
+        const allDocs = [...mockDocuments, ...localDocs];
+        return allDocs.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
+      } catch (e) {
+        return mockDocuments.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
+      }
     },
     [checkedDocId]
   );
@@ -993,47 +1219,47 @@ function VerifyPage() {
   const fileName = uploadedFile?.name || uploadedFile || '';
   const queryDrivenRecord = {
     ...record,
-    recipientName: searchParams.get('name') || record?.recipientName,
-    issuer: searchParams.get('issuer') || record?.issuer,
-    documentType: searchParams.get('type') || record?.documentType,
-    issueDate: searchParams.get('issueDate') || record?.issueDate,
-    uploadDate: searchParams.get('uploadDate') || record?.uploadDate,
-    status: searchParams.get('status') || record?.status || 'Active',
-    studentName: searchParams.get('studentName') || record?.studentName,
-    rollNumber: searchParams.get('rollNumber') || record?.rollNumber,
-    institution: searchParams.get('institution') || record?.institution,
-    course: searchParams.get('course') || record?.course,
-    gradeCgpa: searchParams.get('gradeCgpa') || record?.gradeCgpa,
-    yearOfPassing: searchParams.get('yearOfPassing') || record?.yearOfPassing,
-    employeeName: searchParams.get('employeeName') || record?.employeeName,
-    designation: searchParams.get('designation') || record?.designation,
-    company: searchParams.get('company') || record?.company,
-    joiningRelievingDate: searchParams.get('joiningRelievingDate') || record?.joiningRelievingDate,
-    patientName: searchParams.get('patientName') || record?.patientName,
-    hospital: searchParams.get('hospital') || record?.hospital,
-    reportType: searchParams.get('reportType') || record?.reportType,
-    reportDate: searchParams.get('reportDate') || record?.reportDate,
-    invoiceNumber: searchParams.get('invoiceNumber') || record?.invoiceNumber,
-    payerPayeeName: searchParams.get('payerPayeeName') || record?.payerPayeeName,
-    amount: searchParams.get('amount') || record?.amount,
-    gstin: searchParams.get('gstin') || record?.gstin,
-    dueDate: searchParams.get('dueDate') || record?.dueDate,
-    partyNames: searchParams.get('partyNames') || record?.partyNames,
-    legalDocumentType: searchParams.get('legalDocumentType') || record?.legalDocumentType,
-    notaryName: searchParams.get('notaryName') || record?.notaryName,
-    executionDate: searchParams.get('executionDate') || record?.executionDate,
-    idName: searchParams.get('idName') || record?.idName,
-    idDocumentType: searchParams.get('idDocumentType') || record?.idDocumentType,
-    issuingAuthority: searchParams.get('issuingAuthority') || record?.issuingAuthority,
-    validityDate: searchParams.get('validityDate') || record?.validityDate,
-    originalHash: record?.originalHash || searchParams.get('originalHash') || '',
-    issuedHash: record?.issuedHash || searchParams.get('issuedHash') || '',
-    fullName: searchParams.get('name') || record?.recipientName || ''
+    recipientName: decoded.name || decoded.recipientName || record?.recipientName,
+    issuer: decoded.issuer || record?.issuer,
+    documentType: decoded.type || decoded.documentType || record?.documentType,
+    issueDate: decoded.issueDate || record?.issueDate,
+    uploadDate: decoded.uploadDate || record?.uploadDate,
+    status: decoded.status || record?.status || 'Active',
+    studentName: decoded.studentName || record?.studentName,
+    rollNumber: decoded.rollNumber || record?.rollNumber,
+    institution: decoded.institution || record?.institution,
+    course: decoded.course || record?.course,
+    gradeCgpa: decoded.gradeCgpa || record?.gradeCgpa,
+    yearOfPassing: decoded.yearOfPassing || record?.yearOfPassing,
+    employeeName: decoded.employeeName || record?.employeeName,
+    designation: decoded.designation || record?.designation,
+    company: decoded.company || record?.company,
+    joiningRelievingDate: decoded.joiningRelievingDate || record?.joiningRelievingDate,
+    patientName: decoded.patientName || record?.patientName,
+    hospital: decoded.hospital || record?.hospital,
+    reportType: decoded.reportType || record?.reportType,
+    reportDate: decoded.reportDate || record?.reportDate,
+    invoiceNumber: decoded.invoiceNumber || record?.invoiceNumber,
+    payerPayeeName: decoded.payerPayeeName || record?.payerPayeeName,
+    amount: decoded.amount || record?.amount,
+    gstin: decoded.gstin || record?.gstin,
+    dueDate: decoded.dueDate || record?.dueDate,
+    partyNames: decoded.partyNames || record?.partyNames,
+    legalDocumentType: decoded.legalDocumentType || record?.legalDocumentType,
+    notaryName: decoded.notaryName || record?.notaryName,
+    executionDate: decoded.executionDate || record?.executionDate,
+    idName: decoded.idName || record?.idName,
+    idDocumentType: decoded.idDocumentType || record?.idDocumentType,
+    issuingAuthority: decoded.issuingAuthority || record?.issuingAuthority,
+    validityDate: decoded.validityDate || record?.validityDate,
+    originalHash: record?.originalHash || decoded.originalHash || '',
+    issuedHash: record?.issuedHash || decoded.issuedHash || '',
+    fullName: decoded.name || decoded.recipientName || record?.recipientName || ''
   };
-  const hasQueryMetadata = ['name', 'issuer', 'type', 'issueDate', 'uploadDate', 'originalHash', 'issuedHash'].some((key) => searchParams.get(key)) &&
-    (searchParams.get('documentId')?.toLowerCase() === checkedDocId?.toLowerCase());
+  const hasQueryMetadata = ['name', 'recipientName', 'issuer', 'type', 'documentType', 'issueDate', 'uploadDate', 'originalHash', 'issuedHash'].some((key) => Boolean(decoded[key])) &&
+    (decoded.documentId?.toLowerCase() === checkedDocId?.toLowerCase() || decoded.id?.toLowerCase() === checkedDocId?.toLowerCase());
   const verificationRecord = record || (hasQueryMetadata ? queryDrivenRecord : null);
-  const outcome = getVerificationOutcome({ record: verificationRecord, fileName });
+  const outcome = getVerificationOutcome({ record: verificationRecord, fileName, uploadedFileHash });
   const verificationTimestamp = new Date().toLocaleString();
   const detailedView = getVerificationRecordView({ documentId: checkedDocId, record: verificationRecord, uploadedFile: fileName });
   const mergedView = { ...detailedView, ...(hasQueryMetadata ? queryDrivenRecord : {}), verificationTimestamp };
@@ -1078,7 +1304,7 @@ function VerifyPage() {
 
         <div className="preview-container">
           <div className="hud-title">Verification Outcome HUD</div>
-          <VerificationState outcome={outcome} documentId={checkedDocId} record={mergedView} uploadedFile={fileName} />
+          <VerificationState outcome={outcome} documentId={checkedDocId} record={mergedView} uploadedFile={fileName} uploadedFileHash={uploadedFileHash} />
         </div>
       </div>
     </AppLayout>

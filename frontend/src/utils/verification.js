@@ -1,23 +1,44 @@
 export function getNextDocumentId(records) {
-  let count = parseInt(localStorage.getItem('doc_counter'), 10);
-  if (isNaN(count)) {
-    count = (records?.length || 4) + 1;
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let isUnique = false;
+  let docId = '';
+  let localDocs = [];
+  try {
+    localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
+  } catch (e) {}
+  const allDocs = [...(records || []), ...localDocs];
+
+  while (!isUnique) {
+    docId = '';
+    for (let i = 0; i < 6; i++) {
+      docId += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const existing = allDocs.some((doc) => doc?.documentId?.toUpperCase() === docId);
+    if (!existing) {
+      isUnique = true;
+    }
   }
-  localStorage.setItem('doc_counter', String(count + 1));
-  return `DOC-2026-${String(count).padStart(4, '0')}`;
+  return docId;
 }
 
-export function getVerificationOutcome({ record, fileName }) {
+export function getVerificationOutcome({ record, fileName, uploadedFileHash }) {
   if (!record) {
     return 'missing';
   }
 
-  if (fileName && /tamper|alter|edit|mismatch/i.test(fileName)) {
+  if (record.status === 'Revoked') {
+    return 'revoked';
+  }
+
+  if (uploadedFileHash) {
+    if (uploadedFileHash === record.issuedHash || uploadedFileHash === record.originalHash) {
+      return 'verified';
+    }
     return 'flagged';
   }
 
-  if (record.status === 'Revoked') {
-    return 'revoked';
+  if (fileName && /tamper|alter|edit|mismatch/i.test(fileName)) {
+    return 'flagged';
   }
 
   return 'verified';

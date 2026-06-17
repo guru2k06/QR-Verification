@@ -1,25 +1,27 @@
-const Counter = require('../models/Counter');
+const Document = require('../models/Document');
 
 /**
- * Generates a sequential document ID in the format DOC-YYYY-XXXX.
- * Uses atomic updates on the Counter collection to prevent duplicate IDs.
- * @returns {Promise<string>} Sequential document ID
+ * Generates a unique 6-character alphanumeric document ID.
+ * @returns {Promise<string>} Unique 6-character alphanumeric ID
  */
 async function generateDocId() {
-  const currentYear = new Date().getFullYear();
-  const counterId = `documentId-${currentYear}`;
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let isUnique = false;
+  let docId = '';
 
-  // Find and increment the counter for this year atomically
-  const counter = await Counter.findOneAndUpdate(
-    { _id: counterId },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
+  while (!isUnique) {
+    docId = '';
+    for (let i = 0; i < 6; i++) {
+      docId += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
 
-  // Pad the sequence number to 4 digits
-  const paddedSeq = String(counter.seq).padStart(4, '0');
+    const existing = await Document.findOne({ documentId: docId });
+    if (!existing) {
+      isUnique = true;
+    }
+  }
 
-  return `DOC-${currentYear}-${paddedSeq}`;
+  return docId;
 }
 
 module.exports = generateDocId;

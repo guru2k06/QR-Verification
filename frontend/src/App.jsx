@@ -1,10 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { mockDocuments } from './data/mockDocuments';
 import { getNextDocumentId, getVerificationOutcome, getVerificationRecordView } from './utils/verification';
 import Tooltip from './components/Tooltip';
 import { PDFDocument, rgb, PDFName, PDFString } from 'pdf-lib';
 import QRCode from 'qrcode';
+import logoImg from './logo.png';
 
 const DOCUMENT_TYPE_CONFIG = {
   Certificate: { category: 'Academic', note: 'Best for certificates and academic completion documents.' },
@@ -263,8 +263,8 @@ function AppLayout({ children }) {
         </div>
       )}
       <header className="top-bar">
-        <Link to="/" className="brand-link">
-          <span className="brand-dot" />
+        <Link to="/" className="brand-link" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+          <img src={logoImg} alt="Secure Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           <strong>QR PDF Check</strong>
         </Link>
         <nav className="nav-tabs">
@@ -746,131 +746,49 @@ function UploadPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!pdfFile) {
+      alert("Please upload a PDF file to secure.");
+      return;
+    }
     setIsGenerating(true);
     try {
-      const nextDocumentId = getNextDocumentId(mockDocuments);
-      const pdfName = pdfFile ? pdfFile.name : `secure-${nextDocumentId}.pdf`;
-
-      let originalHash;
-      if (pdfFile) {
-        const arrayBuffer = await pdfFile.arrayBuffer();
-        originalHash = await generateSha256Hex(arrayBuffer);
-      } else {
-        const mockInput = [nextDocumentId, form.documentType, form.issueDate, today].join('|');
-        originalHash = await generateSha256Hex(mockInput);
-      }
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      formData.append('documentType', form.documentType);
       
-      const queryParamsMap = {
-        documentId: nextDocumentId,
-        type: form.documentType,
-        issueDate: form.issueDate,
-        uploadDate: today,
-        issuer: form.issuer || 'System Authority',
-        originalHash,
-        issuedHash: originalHash, // Temporary placeholder for QR code URL
-        file: pdfName
-      };
-
       issuanceFields.forEach((field) => {
         if (form[field.key]) {
-          queryParamsMap[field.key] = form[field.key];
+          formData.append(field.key, form[field.key]);
         }
       });
+      if (form.issuer) formData.append('issuer', form.issuer);
+      if (form.issueDate) formData.append('issueDate', form.issueDate);
 
-      const tempQueryMap = {};
-      for (const [key, val] of Object.entries(queryParamsMap)) {
-        if (val === undefined || val === null || val === '') continue;
-        const shortKey = SHORT_KEYS[key] || key;
-        let finalVal = val;
-        if ((key === 'originalHash' || key === 'issuedHash') && val.length === 64) {
-          finalVal = hexToBase64Url(val);
-        }
-        tempQueryMap[shortKey] = finalVal;
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/documents/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to secure document');
       }
 
-      const tempToken = encryptPayload(tempQueryMap);
-      const tempVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?d=${tempToken}`;
-
-      let pdfBytes;
-      if (pdfFile) {
-        pdfBytes = await stampPdfWithQr(pdfFile, tempVerificationUrl, nextDocumentId, form.issueDate);
-      } else {
-        pdfBytes = await createPdfFromScratch(form, tempVerificationUrl, nextDocumentId);
-      }
-
-      // Compute actual issuedHash of the stamped PDF
-      const issuedHash = await generateSha256Hex(pdfBytes);
-
-      // Re-generate query params with the real cryptographic issuedHash
-      queryParamsMap.issuedHash = issuedHash;
-
-      const finalQueryMap = {};
-      for (const [key, val] of Object.entries(queryParamsMap)) {
-        if (val === undefined || val === null || val === '') continue;
-        const shortKey = SHORT_KEYS[key] || key;
-        let finalVal = val;
-        if ((key === 'originalHash' || key === 'issuedHash') && val.length === 64) {
-          finalVal = hexToBase64Url(val);
-        }
-        finalQueryMap[shortKey] = finalVal;
-      }
-
-      const finalToken = encryptPayload(finalQueryMap);
-      const finalVerificationUrl = `${window.location.origin}/verify/${nextDocumentId}?d=${finalToken}`;
-
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      
-      let filename = pdfFile ? `stamped-${pdfFile.name}` : `secure-${nextDocumentId}.pdf`;
-      if (!filename.toLowerCase().endsWith('.pdf')) {
-        filename += '.pdf';
-      }
-      link.download = filename;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
+      const { documentId, downloadUrl, qrCodeUrl } = result.data;
       const { recipientName } = resolvePdfMetadata(form);
 
-      const qrDataUrl = await QRCode.toDataURL(finalVerificationUrl, { margin: 1, width: 250 });
-
-      // Save to localStorage registered_documents
-      const newDocRecord = {
-        documentId: nextDocumentId,
-        fileName: pdfName,
-        issuer: form.issuer || 'System Authority',
-        recipientName,
-        documentType: form.documentType,
-        issueDate: form.issueDate,
-        status: 'Active',
-        verificationCount: 0,
-        uploadDate: today,
-        originalHash,
-        issuedHash,
-        qrCodeUrl: finalVerificationUrl
-      };
-      try {
-        const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
-        localDocs.push(newDocRecord);
-        localStorage.setItem('registered_documents', JSON.stringify(localDocs));
-      } catch (e) {
-        console.error('Failed to save to localStorage:', e);
-      }
-
       setSecuredDoc({
-        documentId: nextDocumentId,
+        documentId,
         documentType: form.documentType,
         recipientName,
-        verificationUrl: finalVerificationUrl,
-        qrCodeUrl: qrDataUrl,
+        verificationUrl: `${window.location.origin}/verify/${documentId}`,
+        qrCodeUrl,
         downloadUrl,
-        query: `d=${finalToken}`
+        query: ''
       });
     } catch (err) {
-      alert('Failed to stamp or generate PDF.');
+      alert(`Failed to stamp PDF: ${err.message}`);
       console.error(err);
     } finally {
       setIsGenerating(false);
@@ -1018,6 +936,7 @@ function UploadPage() {
                     type={field.type || 'text'}
                     value={form[field.key]}
                     placeholder={field.placeholder}
+                    required
                     onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
                   />
                 </label>
@@ -1031,6 +950,7 @@ function UploadPage() {
                 <input
                   value={form.issuer}
                   placeholder="Department / Officer Name"
+                  required
                   onChange={(event) => setForm({ ...form, issuer: event.target.value })}
                 />
               </label>
@@ -1040,7 +960,7 @@ function UploadPage() {
                   Issue date
                   <Tooltip text="The date the document was officially signed and issued." />
                 </span>
-                <input type="date" value={form.issueDate} onChange={(event) => setForm({ ...form, issueDate: event.target.value })} />
+                <input type="date" value={form.issueDate} required onChange={(event) => setForm({ ...form, issueDate: event.target.value })} />
               </label>
               
               <label className="full-span">
@@ -1265,201 +1185,92 @@ function ResultDetails({ view }) {
 
 function VerifyPage() {
   const { documentId: routeDocumentId } = useParams();
-  const [searchParams] = useSearchParams();
   const [inputDocId, setInputDocId] = useState(routeDocumentId || '');
   const [checkedDocId, setCheckedDocId] = useState(routeDocumentId || '');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
   const [backendRecord, setBackendRecord] = useState(null);
-
-  const decoded = useMemo(() => {
-    const token = searchParams.get('d');
-    if (!token) {
-      const data = {};
-      for (const [key, value] of searchParams.entries()) {
-        const longKey = LONG_KEYS[key] || key;
-        let finalVal = value;
-        if ((longKey === 'originalHash' || longKey === 'issuedHash') && value.length === 43) {
-          finalVal = base64UrlToHex(value);
-        }
-        data[longKey] = finalVal;
-      }
-      return data;
-    }
-
-    const rawPayload = decryptPayload(token);
-    const data = {};
-    for (const [key, value] of Object.entries(rawPayload)) {
-      const longKey = LONG_KEYS[key] || key;
-      let finalVal = value;
-      if ((longKey === 'originalHash' || longKey === 'issuedHash') && value && value.length === 43) {
-        finalVal = base64UrlToHex(value);
-      }
-      data[longKey] = finalVal;
-    }
-    return data;
-  }, [searchParams]);
-
-  const [uploadedFileHash, setUploadedFileHash] = useState('');
-
-  React.useEffect(() => {
-    if (!uploadedFile) {
-      setUploadedFileHash('');
-      return;
-    }
-    let active = true;
-    const getHash = async () => {
-      try {
-        const arrayBuffer = typeof uploadedFile.arrayBuffer === 'function'
-          ? await uploadedFile.arrayBuffer()
-          : await new Response(uploadedFile).arrayBuffer();
-        const hash = await generateSha256Hex(arrayBuffer);
-        if (active) {
-          setUploadedFileHash(hash);
-        }
-      } catch (err) {
-        console.error('Error computing hash:', err);
-      }
-    };
-    getHash();
-    return () => {
-      active = false;
-    };
-  }, [uploadedFile]);
+  const [outcome, setOutcome] = useState('none');
 
   React.useEffect(() => {
     if (!checkedDocId) {
       setBackendRecord(null);
-      return;
-    }
-
-    let localDocs = [];
-    try {
-      localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
-    } catch (e) {}
-    const allDocs = [...mockDocuments, ...localDocs];
-    const localMatch = allDocs.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
-    
-    if (localMatch) {
-      setBackendRecord(null);
+      setOutcome('none');
       return;
     }
 
     let active = true;
     const fetchDoc = async () => {
+      setIsVerifying(true);
       try {
-        const res = await fetch(`http://localhost:5000/api/verify/${checkedDocId}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && active) {
-            setBackendRecord(json.data);
-          }
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        
+        if (uploadedFile) {
+           const formData = new FormData();
+           formData.append('documentId', checkedDocId);
+           formData.append('file', uploadedFile);
+           const res = await fetch(`${apiUrl}/api/verify/upload`, {
+             method: 'POST',
+             body: formData
+           });
+           const json = await res.json();
+           if (!active) return;
+           if (json.success) {
+              setBackendRecord(json.data);
+              setOutcome(json.data.status === 'Revoked' ? 'revoked' : 'valid');
+           } else {
+              if (json.status === 'INVALID') {
+                 setOutcome('flagged');
+              } else {
+                 setOutcome('missing');
+              }
+           }
         } else {
-          if (active) setBackendRecord(null);
+           const res = await fetch(`${apiUrl}/api/verify/${checkedDocId}`);
+           const json = await res.json();
+           if (!active) return;
+           if (json.success) {
+              setBackendRecord(json.data);
+              setOutcome(json.data.status === 'Revoked' ? 'revoked' : 'valid');
+           } else {
+              setBackendRecord(null);
+              setOutcome('missing');
+           }
         }
       } catch (err) {
-        console.warn('Backend server is offline or document not found on backend:', err);
-        if (active) setBackendRecord(null);
+        console.warn('Backend server error:', err);
+        if (active) {
+           setBackendRecord(null);
+           setOutcome('missing');
+        }
+      } finally {
+        if (active) setIsVerifying(false);
       }
     };
-    fetchDoc();
+    
+    // Slight delay for UX
+    const timer = setTimeout(() => fetchDoc(), 800);
     return () => {
       active = false;
+      clearTimeout(timer);
     };
-  }, [checkedDocId]);
+  }, [checkedDocId, uploadedFile]);
 
-  React.useEffect(() => {
-    if (!uploadedFileHash) return;
-    try {
-      const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
-      const allDocs = [...mockDocuments, ...localDocs];
-      const match = allDocs.find(
-        (doc) => doc.issuedHash === uploadedFileHash || doc.originalHash === uploadedFileHash
-      );
-      
-      let targetDocId = '';
-      if (match) {
-        targetDocId = match.documentId;
-      } else if (inputDocId) {
-        targetDocId = inputDocId;
-      }
-
-      if (targetDocId) {
-        setIsVerifying(true);
-        const timer = setTimeout(() => {
-          setInputDocId(targetDocId);
-          setCheckedDocId(targetDocId);
-          setIsVerifying(false);
-        }, 1200);
-        return () => clearTimeout(timer);
-      }
-    } catch (e) {
-      console.error('Error auto-matching file hash:', e);
-    }
-  }, [uploadedFileHash]);
-
-  const record = useMemo(
-    () => {
-      if (!checkedDocId) return null;
-      try {
-        const localDocs = JSON.parse(localStorage.getItem('registered_documents') || '[]');
-        const allDocs = [...mockDocuments, ...localDocs];
-        const localMatch = allDocs.find((item) => item.documentId.toLowerCase() === checkedDocId.toLowerCase());
-        if (localMatch) return localMatch;
-      } catch (e) {}
-      return backendRecord || null;
-    },
-    [checkedDocId, backendRecord]
-  );
-
-  const fileName = uploadedFile?.name || uploadedFile || '';
-  const queryDrivenRecord = {
-    ...record,
-    recipientName: decoded.name || decoded.recipientName || record?.recipientName,
-    issuer: decoded.issuer || record?.issuer,
-    documentType: decoded.type || decoded.documentType || record?.documentType,
-    issueDate: decoded.issueDate || record?.issueDate,
-    uploadDate: decoded.uploadDate || record?.uploadDate,
-    status: decoded.status || record?.status || 'Active',
-    studentName: decoded.studentName || record?.studentName,
-    rollNumber: decoded.rollNumber || record?.rollNumber,
-    institution: decoded.institution || record?.institution,
-    course: decoded.course || record?.course,
-    gradeCgpa: decoded.gradeCgpa || record?.gradeCgpa,
-    yearOfPassing: decoded.yearOfPassing || record?.yearOfPassing,
-    employeeName: decoded.employeeName || record?.employeeName,
-    designation: decoded.designation || record?.designation,
-    company: decoded.company || record?.company,
-    joiningRelievingDate: decoded.joiningRelievingDate || record?.joiningRelievingDate,
-    patientName: decoded.patientName || record?.patientName,
-    hospital: decoded.hospital || record?.hospital,
-    reportType: decoded.reportType || record?.reportType,
-    reportDate: decoded.reportDate || record?.reportDate,
-    invoiceNumber: decoded.invoiceNumber || record?.invoiceNumber,
-    payerPayeeName: decoded.payerPayeeName || record?.payerPayeeName,
-    amount: decoded.amount || record?.amount,
-    gstin: decoded.gstin || record?.gstin,
-    dueDate: decoded.dueDate || record?.dueDate,
-    partyNames: decoded.partyNames || record?.partyNames,
-    legalDocumentType: decoded.legalDocumentType || record?.legalDocumentType,
-    notaryName: decoded.notaryName || record?.notaryName,
-    executionDate: decoded.executionDate || record?.executionDate,
-    idName: decoded.idName || record?.idName,
-    idDocumentType: decoded.idDocumentType || record?.idDocumentType,
-    issuingAuthority: decoded.issuingAuthority || record?.issuingAuthority,
-    validityDate: decoded.validityDate || record?.validityDate,
-    originalHash: record?.originalHash || decoded.originalHash || '',
-    issuedHash: record?.issuedHash || decoded.issuedHash || '',
-    fullName: decoded.name || decoded.recipientName || record?.recipientName || ''
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!inputDocId) return;
+    setCheckedDocId(inputDocId);
   };
-  const hasQueryMetadata = ['name', 'recipientName', 'issuer', 'type', 'documentType', 'issueDate', 'uploadDate', 'originalHash', 'issuedHash'].some((key) => Boolean(decoded[key])) &&
-    (decoded.documentId?.toLowerCase() === checkedDocId?.toLowerCase() || decoded.id?.toLowerCase() === checkedDocId?.toLowerCase());
-  const verificationRecord = record || (hasQueryMetadata ? queryDrivenRecord : null);
-  const outcome = getVerificationOutcome({ record: verificationRecord, fileName, uploadedFileHash });
+
+  const fileName = uploadedFile?.name || '';
   const verificationTimestamp = new Date().toLocaleString();
-  const detailedView = getVerificationRecordView({ documentId: checkedDocId, record: verificationRecord, uploadedFile: fileName });
-  const mergedView = { ...detailedView, ...(hasQueryMetadata ? queryDrivenRecord : {}), verificationTimestamp };
+  
+  const mergedView = backendRecord ? {
+    ...backendRecord,
+    userName: backendRecord.recipientName || 'Unknown',
+    verificationTimestamp
+  } : {};
 
   return (
     <AppLayout>
@@ -1470,24 +1281,17 @@ function VerifyPage() {
             <p className="subtitle">Authenticity verification and cryptographic audit logging console.</p>
           </div>
 
-          <form className="stack-form" onSubmit={(e) => {
-            e.preventDefault();
-            setIsVerifying(true);
-            setTimeout(() => {
-              setCheckedDocId(inputDocId);
-              setIsVerifying(false);
-            }, 1200);
-          }}>
+          <form className="stack-form" onSubmit={handleSubmit}>
             <div className="form-grid">
               <label className="full-span">
-                <span style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ display: "flex", alignItems: "center" }}>
                   Document ID
                   <Tooltip text="The unique registration identifier of the document to pull registry details from the secure ledger." />
                 </span>
-                <input value={inputDocId} onChange={(event) => setInputDocId(event.target.value)} placeholder="DOC-2026-0001" />
+                <input value={inputDocId} required onChange={(event) => setInputDocId(event.target.value)} placeholder="e.g. A1B2C3" />
               </label>
               <label className="full-span">
-                <span style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ display: "flex", alignItems: "center" }}>
                   Compare Document PDF file
                   <Tooltip text="Upload a PDF file to run a cryptographic audit comparing its binary signature with the registered stamp." />
                 </span>
@@ -1497,9 +1301,10 @@ function VerifyPage() {
               <button
                 type="submit"
                 className="btn-primary full-span"
-                style={{ marginTop: '0.5rem' }}
+                style={{ marginTop: "0.5rem" }}
+                disabled={isVerifying}
               >
-                🔍 Verify Document
+                {isVerifying ? '🔍 Verifying...' : '🔍 Verify Document'}
               </button>
             </div>
           </form>
@@ -1507,7 +1312,13 @@ function VerifyPage() {
 
         <div className="preview-container">
           <div className="hud-title">Verification Outcome HUD</div>
-          <VerificationState outcome={outcome} documentId={checkedDocId} record={mergedView} uploadedFile={fileName} uploadedFileHash={uploadedFileHash} isVerifying={isVerifying} />
+          <VerificationState 
+             outcome={checkedDocId ? outcome : 'none'} 
+             documentId={checkedDocId} 
+             record={mergedView} 
+             uploadedFile={fileName} 
+             isVerifying={isVerifying} 
+          />
         </div>
       </div>
     </AppLayout>

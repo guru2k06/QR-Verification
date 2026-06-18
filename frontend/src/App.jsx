@@ -1268,8 +1268,18 @@ function VerifyPage() {
   const fileName = uploadedFile?.name || '';
   const verificationTimestamp = new Date().toLocaleString();
   
+  let formattedIssueDate = backendRecord?.issueDate || '';
+  if (formattedIssueDate && formattedIssueDate.includes('T')) {
+    formattedIssueDate = new Date(formattedIssueDate).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+
   const mergedView = backendRecord ? {
     ...backendRecord,
+    issueDate: formattedIssueDate || backendRecord.issueDate,
     userName: backendRecord.recipientName || 'Unknown',
     verificationTimestamp
   } : {};

@@ -125,7 +125,13 @@ const uploadDocument = async (req, res, next) => {
     const documentId = await generateDocId();
 
     // 8. Build base verification URL
-    const baseUrl = process.env.BASE_VERIFY_URL || 'http://localhost:5173/verify';
+    let baseUrl = process.env.BASE_VERIFY_URL || 'https://qr-verification-92l0iafpv-guru2k06s-projects.vercel.app/verify';
+    
+    // Force override if the cached environment variable is still stuck on localhost
+    if (baseUrl.includes('localhost')) {
+      baseUrl = 'https://qr-verification-92l0iafpv-guru2k06s-projects.vercel.app/verify';
+    }
+
     const verifyUrl = `${baseUrl}/${documentId}`;
 
     // 9. Generate QR code PNG buffer

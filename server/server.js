@@ -24,7 +24,10 @@ app.use(helmet({
 // Configure CORS
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
-    ? (process.env.FRONTEND_URL || 'https://verify.yourdomain.com')
+    ? [
+        process.env.FRONTEND_URL,
+        /^https:\/\/qr-verification.*\.vercel\.app$/
+      ].filter(Boolean)
     : '*',
   optionsSuccessStatus: 200
 };

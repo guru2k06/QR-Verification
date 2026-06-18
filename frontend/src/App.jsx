@@ -1208,7 +1208,9 @@ function VerifyPage() {
         
         if (uploadedFile) {
            const formData = new FormData();
-           formData.append('documentId', checkedDocId);
+           if (checkedDocId && checkedDocId !== 'FILE_ONLY') {
+             formData.append('documentId', checkedDocId);
+           }
            formData.append('file', uploadedFile);
            const res = await fetch(`${apiUrl}/api/verify/upload`, {
              method: 'POST',
@@ -1259,8 +1261,8 @@ function VerifyPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!inputDocId) return;
-    setCheckedDocId(inputDocId);
+    if (!inputDocId && !uploadedFile) return;
+    setCheckedDocId(inputDocId || 'FILE_ONLY');
   };
 
   const fileName = uploadedFile?.name || '';
@@ -1288,7 +1290,7 @@ function VerifyPage() {
                   Document ID
                   <Tooltip text="The unique registration identifier of the document to pull registry details from the secure ledger." />
                 </span>
-                <input value={inputDocId} required onChange={(event) => setInputDocId(event.target.value)} placeholder="e.g. A1B2C3" />
+                <input value={inputDocId} required={!uploadedFile} onChange={(event) => setInputDocId(event.target.value)} placeholder="e.g. A1B2C3" />
               </label>
               <label className="full-span">
                 <span style={{ display: "flex", alignItems: "center" }}>

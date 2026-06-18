@@ -92,13 +92,6 @@ const verifyUpload = async (req, res, next) => {
   try {
     const { documentId } = req.body;
 
-    if (!documentId) {
-      return res.status(400).json({
-        success: false,
-        message: 'documentId is required in the request body'
-      });
-    }
-
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -110,12 +103,17 @@ const verifyUpload = async (req, res, next) => {
     const computedHash = hashFile(req.file.buffer);
 
     // 2. Find document
-    const document = await Document.findOne({ documentId });
+    let document;
+    if (documentId) {
+      document = await Document.findOne({ documentId });
+    } else {
+      document = await Document.findOne({ issuedHash: computedHash });
+    }
 
     // 3. If not found, log audit record and return generic 404
     if (!document) {
       await VerificationRecord.create({
-        documentId,
+        documentId: documentId || 'UNKNOWN_UPLOAD',
         result: 'NotFound',
         checkedHash: computedHash,
         ipAddress: req.ip,

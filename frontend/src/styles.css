@@ -360,10 +360,32 @@ input:focus, select:focus {
   font-size: 1rem;
   cursor: pointer;
   border: none;
-  background: linear-gradient(135deg, var(--violet), #6366f1);
+  background: linear-gradient(270deg, var(--violet), #ec4899, #4f46e5, var(--violet));
+  background-size: 300% 300%;
+  animation: gradientShift 6s ease infinite;
   color: #fff;
-  box-shadow: 0 10px 20px -5px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 10px 20px -5px rgba(139, 92, 246, 0.4);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.secure-spin-icon {
+  animation: pulse-spin 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes pulse-spin {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15) rotate(5deg); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .btn-primary:hover {

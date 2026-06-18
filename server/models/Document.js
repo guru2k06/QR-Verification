@@ -88,7 +88,6 @@ const DocumentSchema = new mongoose.Schema(
 );
 
 // Create index for fast lookups
-DocumentSchema.index({ documentId: 1 });
 DocumentSchema.index({ originalHash: 1 });
 DocumentSchema.index({ issuedHash: 1 });
 

@@ -515,7 +515,7 @@ async function stampPdfWithQr(pdfFile, qrUrl, documentId, issueDate) {
     let hostStr = 'verify.yourdomain.com';
     try {
       const parsedUrl = new URL(qrUrl);
-      hostStr = `${parsedUrl.host}${parsedUrl.pathname}`.replace(/\/[a-zA-Z0-9_-]+$/i, '');
+      hostStr = `${parsedUrl.host}${parsedUrl.pathname}`.replace(/\/[^/]+$/, '');
       hostStr = hostStr.split('?')[0];
       if (hostStr.endsWith('/')) {
         hostStr = hostStr.slice(0, -1);
@@ -775,15 +775,17 @@ function UploadPage() {
         throw new Error(result.message || 'Failed to secure document');
       }
 
-      const { documentId, downloadUrl, qrCodeUrl } = result.data;
+      const { documentId, downloadUrl } = result.data;
       const { recipientName } = resolvePdfMetadata(form);
+      const verificationUrl = `${window.location.origin}/verify/${documentId}`;
+      const base64QrImage = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 250 });
 
       setSecuredDoc({
         documentId,
         documentType: form.documentType,
         recipientName,
-        verificationUrl: `${window.location.origin}/verify/${documentId}`,
-        qrCodeUrl,
+        verificationUrl,
+        qrCodeUrl: base64QrImage,
         downloadUrl,
         query: ''
       });

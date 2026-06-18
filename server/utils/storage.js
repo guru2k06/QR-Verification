@@ -25,7 +25,7 @@ async function saveFile(fileName, fileBuffer) {
       {
         folder: 'qr-verification',
         public_id: sanitizedName,
-        resource_type: 'raw', // Ensure PDF is treated correctly
+        resource_type: 'image', // Use 'image' instead of 'raw' for PDFs to bypass restricted delivery
         use_filename: true,
         unique_filename: false
       },
@@ -56,8 +56,7 @@ async function saveFile(fileName, fileBuffer) {
  */
 async function deleteFile(fileUrl) {
   try {
-    // Extract public_id from Cloudinary raw URL 
-    // e.g. https://res.cloudinary.com/.../raw/upload/v1234/qr-verification/123-file.pdf
+    // Extract public_id from Cloudinary URL 
     const urlParts = fileUrl.split('/');
     // Get everything after the 'upload/' segment (and version string if present)
     const uploadIndex = urlParts.findIndex(p => p === 'upload');
@@ -67,9 +66,14 @@ async function deleteFile(fileUrl) {
       if (relativeParts[0].match(/^v\d+$/)) {
         relativeParts = relativeParts.slice(1);
       }
-      const publicId = relativeParts.join('/');
+      let publicId = relativeParts.join('/');
       
-      await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+      // Strip .pdf extension as image resource types don't include it in public_id
+      if (publicId.endsWith('.pdf')) {
+        publicId = publicId.slice(0, -4);
+      }
+      
+      await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
     }
   } catch (error) {
     console.error('Cloudinary delete failure:', error);

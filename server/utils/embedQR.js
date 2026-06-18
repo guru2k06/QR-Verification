@@ -97,12 +97,12 @@ async function embedQR(pdfBuffer, qrBuffer, documentId, verifyUrl, issueDate) {
       } catch (err) {}
     }
 
-    // Draw "Verify at: domain"
-    lastPage.drawText(`Verify at: ${hostStr}`, {
-      x: qrX,
+    // Draw "Scan to Verify" instead of displaying the domain string
+    lastPage.drawText(`Scan to Verify`, {
+      x: qrX + 10,
       y: qrY - 19,
-      size: 6,
-      font: fontRegular,
+      size: 7,
+      font: fontBold,
       color: rgb(0.3, 0.3, 0.3)
     });
 

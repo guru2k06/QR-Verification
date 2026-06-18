@@ -746,14 +746,12 @@ function UploadPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!pdfFile) {
-      alert("Please upload a PDF file to secure.");
-      return;
-    }
     setIsGenerating(true);
     try {
       const formData = new FormData();
-      formData.append('file', pdfFile);
+      if (pdfFile) {
+        formData.append('file', pdfFile);
+      }
       formData.append('documentType', form.documentType);
       
       issuanceFields.forEach((field) => {
@@ -967,8 +965,8 @@ function UploadPage() {
               
               <label className="full-span">
                 <span style={{ display: 'flex', alignItems: 'center' }}>
-                  PDF file to stamp
-                  <Tooltip text="Upload the document PDF file here to embed the verification QR code directly onto it." />
+                  PDF file to stamp (Optional)
+                  <Tooltip text="Upload the document PDF file here to embed the verification QR code directly onto it. If skipped, a standard secure document will be generated automatically." />
                 </span>
                 <CustomDropzone file={pdfFile} setFile={setPdfFile} />
               </label>

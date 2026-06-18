@@ -24,14 +24,6 @@ const getCategory = (documentType) => {
 // @access  Protected (Admin/Issuer)
 const uploadDocument = async (req, res, next) => {
   try {
-    // 1. Ensure file is uploaded
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please upload a PDF file'
-      });
-    }
-
     const { documentType } = req.body;
     if (!documentType) {
       return res.status(400).json({
@@ -78,20 +70,7 @@ const uploadDocument = async (req, res, next) => {
       });
     }
 
-    // 3. Compute hash of the original uploaded file
-    const originalHash = hashFile(req.file.buffer);
-
-    // 4. Generate sequential documentId (DOC-YYYY-XXXX)
-    const documentId = await generateDocId();
-
-    // 5. Build base verification URL
-    const baseUrl = process.env.BASE_VERIFY_URL || 'http://localhost:5173/verify';
-    const verifyUrl = `${baseUrl}/${documentId}`;
-
-    // 6. Generate QR code PNG buffer
-    const qrBuffer = await generateQR(verifyUrl);
-
-    // 7. Derive standard fields
+    // 3. Derive standard fields
     const recipientName = req.body.recipientName || 
       req.body.studentName || 
       req.body.employeeName || 
@@ -111,25 +90,7 @@ const uploadDocument = async (req, res, next) => {
 
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
 
-    // 8. Stamp QR Code into the PDF
-    const stampedPdfBuffer = await embedQR(
-      req.file.buffer,
-      qrBuffer,
-      documentId,
-      verifyUrl,
-      issueDate
-    );
-
-    // 9. Compute hash of the final stamped PDF
-    const issuedHash = hashFile(stampedPdfBuffer);
-
-    // 10. Save final stamped PDF to storage
-    const storageResult = await storage.saveFile(
-      req.file.originalname,
-      stampedPdfBuffer
-    );
-
-    // 11. Isolate typeSpecificData from req.body and apply masking
+    // 4. Isolate typeSpecificData from req.body
     const typeSpecificData = {};
     const commonKeys = ['documentType', 'issuer', 'recipientName', 'issueDate'];
     
@@ -138,6 +99,55 @@ const uploadDocument = async (req, res, next) => {
         typeSpecificData[key] = req.body[key];
       }
     });
+
+    // 5. Ensure we have a PDF buffer
+    let pdfBuffer;
+    let originalName;
+    if (req.file) {
+      pdfBuffer = req.file.buffer;
+      originalName = req.file.originalname;
+    } else {
+      const generateDefaultPdf = require('../utils/generateDefaultPdf');
+      pdfBuffer = await generateDefaultPdf({
+        documentType,
+        recipientName,
+        issuer,
+        issueDate,
+        typeSpecificData
+      });
+      originalName = `${documentType.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+    }
+
+    // 6. Compute hash of the original file (uploaded or generated)
+    const originalHash = hashFile(pdfBuffer);
+
+    // 7. Generate sequential documentId (DOC-YYYY-XXXX)
+    const documentId = await generateDocId();
+
+    // 8. Build base verification URL
+    const baseUrl = process.env.BASE_VERIFY_URL || 'http://localhost:5173/verify';
+    const verifyUrl = `${baseUrl}/${documentId}`;
+
+    // 9. Generate QR code PNG buffer
+    const qrBuffer = await generateQR(verifyUrl);
+
+    // 10. Stamp QR Code into the PDF
+    const stampedPdfBuffer = await embedQR(
+      pdfBuffer,
+      qrBuffer,
+      documentId,
+      verifyUrl,
+      issueDate
+    );
+
+    // 11. Compute hash of the final stamped PDF
+    const issuedHash = hashFile(stampedPdfBuffer);
+
+    // 12. Save final stamped PDF to storage
+    const storageResult = await storage.saveFile(
+      originalName,
+      stampedPdfBuffer
+    );
 
     const maskedData = maskSensitiveData(documentType, typeSpecificData);
 

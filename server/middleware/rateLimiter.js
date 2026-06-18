@@ -15,6 +15,22 @@ const verifyLimiter = rateLimit({
   }
 });
 
+/**
+ * Rate limiter specifically for upload endpoints.
+ * Limits each IP to 5 uploads per minute.
+ */
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 5, // limit each IP to 5 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many upload requests from this IP. Please try again in a minute.'
+  }
+});
+
 module.exports = {
-  verifyLimiter
+  verifyLimiter,
+  uploadLimiter
 };

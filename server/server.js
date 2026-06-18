@@ -56,6 +56,14 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health check route for uptime monitors and free tier cold starts
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'Server is awake'
+  });
+});
+
 // Centralized error handler (Must be placed after all other app.use() and routes)
 app.use(errorHandler);
 

@@ -146,7 +146,7 @@ const uploadDocument = async (req, res, next) => {
       documentId,
       documentType,
       fileName: storageResult.fileName,
-      filePath: storageResult.filePath,
+      fileUrl: storageResult.filePath,
       originalHash,
       issuedHash,
       issuer,
@@ -164,7 +164,7 @@ const uploadDocument = async (req, res, next) => {
       message: 'Document issued successfully',
       data: {
         documentId: document.documentId,
-        downloadUrl: document.filePath,
+        downloadUrl: document.fileUrl,
         qrCodeUrl: document.qrCodeUrl
       }
     });

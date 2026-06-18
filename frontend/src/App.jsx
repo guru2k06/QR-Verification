@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { mockDocuments } from './data/mockDocuments';
 import { getNextDocumentId, getVerificationOutcome, getVerificationRecordView } from './utils/verification';
@@ -229,9 +229,39 @@ function base64UrlToHex(base64url) {
 function AppLayout({ children }) {
   const location = useLocation();
   const isVerify = location.pathname.startsWith('/verify');
+  const [isWakingUp, setIsWakingUp] = useState(false);
+
+  useEffect(() => {
+    // Ping backend to wake it up from free-tier sleep
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    
+    let isAwake = false;
+    const timeoutId = setTimeout(() => {
+      if (!isAwake) {
+        setIsWakingUp(true);
+      }
+    }, 1500); // Show loading state if it takes longer than 1.5s
+
+    fetch(`${backendUrl}/health`)
+      .then(res => {
+        if (res.ok) isAwake = true;
+      })
+      .catch(err => console.log('Backend might be asleep:', err))
+      .finally(() => {
+        setIsWakingUp(false);
+        clearTimeout(timeoutId);
+      });
+      
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   return (
     <div className="page-shell">
+      {isWakingUp && (
+        <div className="cold-start-banner" style={{ background: '#ffa000', color: '#fff', padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>
+          Waking up server, please wait... This may take up to 50 seconds.
+        </div>
+      )}
       <header className="top-bar">
         <Link to="/" className="brand-link">
           <span className="brand-dot" />

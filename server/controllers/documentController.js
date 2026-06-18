@@ -174,7 +174,7 @@ const uploadDocument = async (req, res, next) => {
       message: 'Document issued successfully',
       data: {
         documentId: document.documentId,
-        downloadUrl: document.fileUrl,
+        downloadUrl: `data:application/pdf;base64,${stampedPdfBuffer.toString('base64')}`,
         qrCodeUrl: document.qrCodeUrl
       }
     });

@@ -20,11 +20,14 @@ async function saveFile(fileName, fileBuffer) {
     // Standardize filename to avoid conflicts
     const sanitizedName = `${Date.now()}-${fileName.replace(/\s+/g, '_')}`;
     
+    // Strip extension from public_id to prevent Cloudinary from appending .pdf.pdf
+    const publicId = sanitizedName.replace(/\.[^/.]+$/, "");
+
     // Create an upload stream to Cloudinary
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: 'qr-verification',
-        public_id: sanitizedName,
+        public_id: publicId,
         resource_type: 'image', // Use 'image' instead of 'raw' for PDFs to bypass restricted delivery
         use_filename: true,
         unique_filename: false

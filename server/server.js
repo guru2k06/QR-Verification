@@ -21,12 +21,12 @@ app.use(helmet({
   crossOriginResourcePolicy: false // Allows browsers to retrieve files from uploads statically
 }));
 
-// Configure CORS
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
     ? [
         process.env.FRONTEND_URL,
-        /^https:\/\/qr-verification.*\.vercel\.app$/
+        /^https:\/\/qr-verification.*\.vercel\.app$/,
+        'http://localhost:5173'
       ].filter(Boolean)
     : '*',
   optionsSuccessStatus: 200

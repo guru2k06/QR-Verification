@@ -2,8 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { getVerificationRecordView } from './utils/verification';
 import Tooltip from './components/Tooltip';
-import { PDFDocument, rgb, PDFName, PDFString } from 'pdf-lib';
-import QRCode from 'qrcode';
+
 import logoImg from './logo.png';
 
 const DOCUMENT_TYPE_CONFIG = {
@@ -168,43 +167,7 @@ const LONG_KEYS = Object.fromEntries(
   Object.entries(SHORT_KEYS).map(([long, short]) => [short, long])
 );
 
-function hexToBase64Url(hex) {
-  if (!hex || hex.length !== 64) return hex;
-  try {
-    const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary)
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
-  } catch (e) {
-    return hex;
-  }
-}
 
-function base64UrlToHex(base64url) {
-  if (!base64url || base64url.length !== 43) return base64url;
-  try {
-    let base64 = base64url
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    while (base64.length % 4) {
-      base64 += '=';
-    }
-    const binary = atob(base64);
-    let hex = '';
-    for (let i = 0; i < binary.length; i++) {
-      const code = binary.charCodeAt(i);
-      hex += code.toString(16).padStart(2, '0');
-    }
-    return hex;
-  } catch (e) {
-    return base64url;
-  }
-}
 
 
 function AppLayout({ children }) {
@@ -265,54 +228,6 @@ function AppLayout({ children }) {
   );
 }
 
-/* Helper functions to encrypt/decrypt query metadata to avoid exposing it in the URL */
-export function encryptPayload(payloadObj) {
-  try {
-    const jsonStr = JSON.stringify(payloadObj);
-    const utf8Bytes = new TextEncoder().encode(jsonStr);
-    const key = [83, 101, 99, 117, 114, 101, 80, 68, 70, 86, 101, 114, 105, 102, 121]; // "SecurePDFVerify"
-    const obfuscatedBytes = new Uint8Array(utf8Bytes.length);
-    for (let i = 0; i < utf8Bytes.length; i++) {
-      obfuscatedBytes[i] = utf8Bytes[i] ^ key[i % key.length];
-    }
-    let binary = '';
-    const len = obfuscatedBytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(obfuscatedBytes[i]);
-    }
-    return btoa(binary)
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-  } catch (e) {
-    console.error('Failed to encrypt payload:', e);
-    return '';
-  }
-}
-
-export function decryptPayload(token) {
-  try {
-    if (!token) return {};
-    let base64 = token.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4) {
-      base64 += '=';
-    }
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const key = [83, 101, 99, 117, 114, 101, 80, 68, 70, 86, 101, 114, 105, 102, 121]; // "SecurePDFVerify"
-    const utf8Bytes = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i++) {
-      utf8Bytes[i] = bytes[i] ^ key[i % key.length];
-    }
-    return JSON.parse(new TextDecoder().decode(utf8Bytes));
-  } catch (e) {
-    console.error('Failed to decrypt payload:', e);
-    return {};
-  }
-}
 
 /* Reusable Interactive Drag and Drop File Zone */
 function CustomDropzone({ file, setFile }) {
@@ -404,140 +319,7 @@ function CustomDropzone({ file, setFile }) {
   );
 }
 
-function addLinkToPage(pdfDoc, page, url, x, y, width, height) {
-  try {
-    const linkAnnot = pdfDoc.context.obj({
-      Type: 'Annot',
-      Subtype: 'Link',
-      Rect: [x, y, x + width, y + height],
-      Border: [0, 0, 0],
-      A: {
-        Type: 'Action',
-        S: 'URI',
-        URI: PDFString.of(url)
-      }
-    });
-    const linkAnnotRef = pdfDoc.context.register(linkAnnot);
-    let annots = page.node.get(PDFName.of('Annots'));
-    if (annots) {
-      annots.push(linkAnnotRef);
-    } else {
-      page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([linkAnnotRef]));
-    }
-  } catch (e) {
-    console.error('Failed to add hyperlink annotation:', e);
-  }
-}
 
-async function stampPdfWithQr(pdfFile, qrUrl, documentId, issueDate) {
-  try {
-    const arrayBuffer = await pdfFile.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-    const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 });
-    const qrImage = await pdfDoc.embedPng(qrDataUrl);
-    
-    const pages = pdfDoc.getPages();
-    const lastPage = pages[pages.length - 1];
-    const { width, height } = lastPage.getSize();
-    
-    const qrSize = 70;
-    const marginRight = 25;
-    const qrX = width - qrSize - marginRight;
-    const qrY = 45;
-
-    // Draw white background block for readability
-    lastPage.drawRectangle({
-      x: qrX - 5,
-      y: qrY - 35,
-      width: qrSize + 10,
-      height: qrSize + 50,
-      color: rgb(1, 1, 1),
-      opacity: 0.9
-    });
-
-    // Draw QR Code
-    lastPage.drawImage(qrImage, {
-      x: qrX,
-      y: qrY,
-      width: qrSize,
-      height: qrSize,
-    });
-    
-    lastPage.drawRectangle({
-      x: qrX - 1,
-      y: qrY - 1,
-      width: qrSize + 2,
-      height: qrSize + 2,
-      borderColor: rgb(0.54, 0.36, 0.96),
-      borderWidth: 1.5,
-    });
-    
-    const fontBold = await pdfDoc.embedFont('Helvetica-Bold');
-    const fontRegular = await pdfDoc.embedFont('Helvetica');
-    
-    lastPage.drawText('VERIFY ORIGINAL', {
-      x: qrX,
-      y: qrY + qrSize + 6,
-      size: 6.5,
-      font: fontBold,
-      color: rgb(0.54, 0.36, 0.96),
-    });
-
-    if (documentId) {
-      lastPage.drawText(`ID: ${documentId}`, {
-        x: qrX,
-        y: qrY - 10,
-        size: 7,
-        font: fontBold,
-        color: rgb(0.06, 0.09, 0.16)
-      });
-    }
-
-    let hostStr = 'verify.yourdomain.com';
-    try {
-      const parsedUrl = new URL(qrUrl);
-      hostStr = `${parsedUrl.host}${parsedUrl.pathname}`.replace(/\/[^/]+$/, '');
-      hostStr = hostStr.split('?')[0];
-      if (hostStr.endsWith('/')) {
-        hostStr = hostStr.slice(0, -1);
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    lastPage.drawText(`Verify at: ${hostStr}`, {
-      x: qrX,
-      y: qrY - 19,
-      size: 6,
-      font: fontRegular,
-      color: rgb(0.3, 0.3, 0.3)
-    });
-
-    if (issueDate) {
-      const dateObj = new Date(issueDate);
-      const dateStr = !isNaN(dateObj.getTime()) 
-        ? dateObj.toISOString().slice(0, 10) 
-        : String(issueDate);
-
-      lastPage.drawText(`Issued: ${dateStr}`, {
-        x: qrX,
-        y: qrY - 28,
-        size: 6,
-        font: fontRegular,
-        color: rgb(0.4, 0.4, 0.4)
-      });
-    }
-
-    addLinkToPage(pdfDoc, lastPage, qrUrl, qrX, qrY, qrSize, qrSize);
-    addLinkToPage(pdfDoc, lastPage, qrUrl, qrX, qrY - 22, qrSize, 12);
-
-    const modifiedPdfBytes = await pdfDoc.save();
-    return modifiedPdfBytes;
-  } catch (error) {
-    console.error('Failed to stamp PDF:', error);
-    throw error;
-  }
-}
 
 function resolvePdfMetadata(form) {
   const category = getDocumentCategory(form.documentType);
@@ -574,127 +356,7 @@ function resolvePdfMetadata(form) {
   };
 }
 
-async function createPdfFromScratch(form, qrUrl, documentId) {
-  try {
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([600, 750]);
-    const { width, height } = page.getSize();
-    
-    page.drawRectangle({
-      x: 20,
-      y: 20,
-      width: width - 40,
-      height: height - 40,
-      borderColor: rgb(0.06, 0.72, 0.5),
-      borderWidth: 3,
-    });
 
-    page.drawRectangle({
-      x: 25,
-      y: 25,
-      width: width - 50,
-      height: height - 50,
-      borderColor: rgb(0.54, 0.36, 0.96),
-      borderWidth: 1,
-    });
-
-    const helveticaFont = await pdfDoc.embedFont('Helvetica');
-    const helveticaBold = await pdfDoc.embedFont('Helvetica-Bold');
-
-    page.drawText('SECURED DOCUMENT RECORD', {
-      x: 80,
-      y: height - 80,
-      size: 24,
-      font: helveticaBold,
-      color: rgb(0.06, 0.09, 0.16),
-    });
-
-    page.drawText(`Document ID: ${documentId}`, {
-      x: 80,
-      y: height - 105,
-      size: 11,
-      font: helveticaFont,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-
-    page.drawText(`Document Type: ${form.documentType}`, {
-      x: 80,
-      y: height - 160,
-      size: 16,
-      font: helveticaBold,
-      color: rgb(0.1, 0.1, 0.1),
-    });
-
-    const { recipientName, organization } = resolvePdfMetadata(form);
-
-    page.drawText(`Issued To: ${recipientName}`, {
-      x: 80,
-      y: height - 210,
-      size: 14,
-      font: helveticaBold,
-      color: rgb(0.06, 0.09, 0.16),
-    });
-
-    page.drawText(`Issued By: ${organization}`, {
-      x: 80,
-      y: height - 240,
-      size: 14,
-      font: helveticaFont,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
-    page.drawText(`Issue Date: ${form.issueDate}`, {
-      x: 80,
-      y: height - 270,
-      size: 12,
-      font: helveticaFont,
-      color: rgb(0.3, 0.3, 0.3),
-    });
-
-    page.drawLine({
-      start: { x: 80, y: height - 310 },
-      end: { x: width - 80, y: height - 310 },
-      thickness: 1,
-      color: rgb(0.9, 0.9, 0.9),
-    });
-
-    const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 250 });
-    const qrImage = await pdfDoc.embedPng(qrDataUrl);
-    
-    const qrSize = 140;
-    page.drawImage(qrImage, {
-      x: (width - qrSize) / 2,
-      y: height - 490,
-      width: qrSize,
-      height: qrSize,
-    });
-
-    page.drawText('Scan QR Code to Verify Authenticity', {
-      x: 165,
-      y: height - 520,
-      size: 12,
-      font: helveticaBold,
-      color: rgb(0.54, 0.36, 0.96),
-    });
-
-    page.drawText('This document is digitally registered in the secure ledger.', {
-      x: 130,
-      y: height - 550,
-      size: 10,
-      font: helveticaFont,
-      color: rgb(0.5, 0.5, 0.5),
-    });
-
-    addLinkToPage(pdfDoc, page, qrUrl, (width - qrSize) / 2, height - 490, qrSize, qrSize);
-    addLinkToPage(pdfDoc, page, qrUrl, 160, height - 525, 280, 18);
-
-    const pdfBytes = await pdfDoc.save();
-    return pdfBytes;
-  } catch (error) {
-    console.error('Failed to create PDF:', error);
-    throw error;
-  }
-}
 
 function UploadPage() {
   const navigate = useNavigate();

@@ -1286,6 +1286,7 @@ function VerifyPage() {
 
   const mergedView = backendRecord ? {
     ...backendRecord,
+    ...(backendRecord.typeSpecificData || {}),
     issueDate: formattedIssueDate || backendRecord.issueDate,
     userName: backendRecord.recipientName || 'Unknown',
     verificationTimestamp

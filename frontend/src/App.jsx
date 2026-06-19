@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { getNextDocumentId, getVerificationOutcome, getVerificationRecordView } from './utils/verification';
+import { getVerificationRecordView } from './utils/verification';
 import Tooltip from './components/Tooltip';
 import { PDFDocument, rgb, PDFName, PDFString } from 'pdf-lib';
 import QRCode from 'qrcode';
@@ -123,26 +123,7 @@ function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function generateSha256Hex(data) {
-  const inputBuffer = typeof data === 'string'
-    ? new TextEncoder().encode(data)
-    : data;
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const buffer = await crypto.subtle.digest('SHA-256', inputBuffer);
-    return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
-  }
 
-  let binaryString = '';
-  if (typeof data === 'string') {
-    binaryString = unescape(encodeURIComponent(data));
-  } else {
-    const bytes = new Uint8Array(data);
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
-    }
-  }
-  return `sha256-${btoa(binaryString).slice(0, 24)}`;
-}
 
 const SHORT_KEYS = {
   documentId: 'id',
@@ -989,7 +970,7 @@ function UploadPage() {
   );
 }
 
-function VerificationState({ outcome, documentId, record, uploadedFile, uploadedFileHash, isVerifying }) {
+function VerificationState({ outcome, documentId, record, uploadedFile, isVerifying }) {
   if (isVerifying) {
     return (
       <div className="result-banner-hud scanner-container" style={{ background: 'rgba(255, 255, 255, 0.02)', borderColor: 'var(--violet)', padding: '2.5rem 2rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
@@ -1071,9 +1052,9 @@ function VerificationState({ outcome, documentId, record, uploadedFile, uploaded
               <div className="hash-code">{view.issuedHash || view.originalHash || 'b4c6f3c4a1e6f4c0a0e8f6b2d8d9c6f3...'}</div>
             </div>
             <div className="hash-row">
-              <span>Uploaded File Hash</span>
+              <span>Status</span>
               <div className="hash-code" style={{ color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.08)' }}>
-                {uploadedFileHash || (view.issuedHash ? view.issuedHash.replace(/.$/, 'a') : 'f4a6b3c4d1e2f4c0a0e8f6b2d8d9c6f3...')} (MISMATCH)
+                Hash Mismatch Detected
               </div>
             </div>
           </div>
@@ -1199,13 +1180,11 @@ function VerifyPage() {
 
   const [backendRecord, setBackendRecord] = useState(null);
   const [outcome, setOutcome] = useState('none');
-  const [uploadedFileHash, setUploadedFileHash] = useState('');
 
   React.useEffect(() => {
     if (!checkedDocId) {
       setBackendRecord(null);
       setOutcome('none');
-      setUploadedFileHash('');
       return;
     }
 
@@ -1216,13 +1195,6 @@ function VerifyPage() {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         
         if (uploadedFile) {
-           try {
-             const buffer = await uploadedFile.arrayBuffer();
-             const hash = await ateSha25gener6Hex(buffer);
-             if (active) setUploadedFileHash(hash);
-           } catch (e) {
-             console.error("Failed to hash file on frontend", e);
-           }
 
            const formData = new FormData();
            if (checkedDocId && checkedDocId !== 'FILE_ONLY') {
@@ -1246,7 +1218,6 @@ function VerifyPage() {
               }
            }
         } else {
-           if (active) setUploadedFileHash('');
            const res = await fetch(`${apiUrl}/api/verify/${checkedDocId}`);
            const json = await res.json();
            if (!active) return;
@@ -1355,7 +1326,6 @@ function VerifyPage() {
              documentId={checkedDocId} 
              record={mergedView} 
              uploadedFile={fileName} 
-             uploadedFileHash={uploadedFileHash}
              isVerifying={isVerifying} 
           />
         </div>

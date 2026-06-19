@@ -6,9 +6,9 @@ This document describes how the QR-Verification system secures, registers, stamp
 
 ## 1. System Overview
 
-The system consists of two primary parts:
-1. **Frontend App (Vite + React)**: A standalone, premium single-page application that performs client-side PDF stamping (using `pdf-lib`), QR code generation, cryptographic hashing, and visual verification. It simulates a database using `localStorage` for quick, serverless execution.
-2. **Backend API (Node.js + Express + MongoDB)**: A production-ready REST API that handles secure authentication (JWT), document registration, server-side PDF stamping, database storage, audit logging, and cryptographic verification checks.
+The system consists of a robust full-stack architecture:
+1. **Frontend App (Vite + React)**: A premium single-page application that provides the user interface for document issuance and verification. It securely transmits data to the backend and performs client-side hashing for visual verification feedback.
+2. **Backend API (Node.js + Express + MongoDB)**: A production-ready REST API that handles secure document registration, server-side PDF generation/stamping (using `pdf-lib`), cryptographic hashing, database storage, and audit logging.
 
 ---
 
@@ -16,8 +16,11 @@ The system consists of two primary parts:
 
 To guarantee document integrity and prevent forgery, the system relies on standard cryptographic primitives:
 
-- **SHA-256 Hashing**: Generates a unique 256-bit (32-byte) binary signature of any input (metadata text or binary PDF file). Even a single-bit change in the document will result in a completely different hash (the avalanche effect).
-- **QR Code Verification URL**: Contains compressed metadata representing the document. To keep the QR code simple, clean, and fast to scan, hashes are encoded in **base64url** format (reducing 64 hex characters to 43 characters), and keys are shortened (e.g. `documentId` becomes `id`).
+- **SHA-256 Hashing**: Generates a unique 256-bit (32-byte) binary signature of any input (metadata text or binary PDF file). Even a single-bit change in the document will result in a completely different hash.
+- **Dual-Hash System**:
+  - `originalHash`: The hash of the un-stamped, source PDF (or the auto-generated blank template).
+  - `issuedHash`: The hash of the final PDF *after* the QR code has been embedded.
+- **QR Code Verification URL**: Contains a direct link to the system's `/verify/:documentId` route.
 
 ---
 
@@ -29,17 +32,23 @@ To guarantee document integrity and prevent forgery, the system relies on standa
 sequenceDiagram
     actor Issuer as Document Issuer
     participant UI as React Frontend
-    participant PDFLib as pdf-lib (Client)
-    participant LS as Local Storage
+    participant API as Express Backend
+    participant DB as MongoDB
+    participant Storage as File System
 
-    Issuer->>UI: Fills metadata (Name, Dates, etc.) and uploads source PDF
-    UI->>UI: Generates 6-character alphanumeric Document ID (e.g., K9X2TB)
-    UI->>UI: Computes SHA-256 hash of original PDF bytes (originalHash)
-    UI->>UI: Compiles metadata into base64url shortened URL query params
-    UI->>PDFLib: Embeds QR code linking to verification URL on last page
-    PDFLib-->>UI: Returns modified stamped PDF bytes
-    UI->>UI: Computes SHA-256 of stamped PDF bytes (issuedHash)
-    UI->>LS: Saves record (id, originalHash, issuedHash, metadata)
+    Issuer->>UI: Fills metadata form and optionally uploads PDF
+    UI->>API: POST /api/documents/upload (FormData)
+    API->>API: Validates metadata & generates Document ID (e.g., DOC-2026-X9K2PJ)
+    alt No PDF Uploaded
+        API->>API: Generates default PDF template using metadata
+    end
+    API->>API: Computes SHA-256 of original PDF (originalHash)
+    API->>API: Generates QR Code pointing to verify URL
+    API->>API: Embeds QR Code into PDF (stampedPdfBuffer)
+    API->>API: Computes SHA-256 of stamped PDF (issuedHash)
+    API->>Storage: Saves final stamped PDF to /uploads
+    API->>DB: Stores metadata, hashes, and masked sensitive data
+    API-->>UI: Returns Document ID, QR DataURL, and PDF Base64
     UI->>Issuer: Triggers automatic download of stamped PDF
 ```
 
@@ -49,18 +58,26 @@ sequenceDiagram
 sequenceDiagram
     actor Verifier as Document Verifier
     participant UI as React Frontend
-    participant LS as Local Storage
+    participant API as Express Backend
+    participant DB as MongoDB
 
-    Verifier->>UI: Scans QR code or enters URL
-    UI->>UI: Decodes query parameters (base64url to hex, short keys to long)
-    UI->>LS: Looks up Document ID in registered ledger
-    LS-->>UI: Returns registered metadata, originalHash, and issuedHash
-    UI->>UI: Displays registered record details (Read-only HUD)
-    Verifier->>UI: Drags & drops or uploads the stamped PDF
-    UI->>UI: Reads uploaded PDF bytes and computes SHA-256 hash
-    alt Hash matches issuedHash or originalHash
-        UI-->>Verifier: Displays "Verified Authentic" (Green HUD status)
+    Verifier->>UI: Enters Document ID or scans QR code
+    UI->>API: GET /api/verify/:documentId
+    API->>DB: Looks up Document ID
+    API->>DB: Logs Verification Audit Record
+    DB-->>API: Returns public metadata (status, issuer, dates)
+    API-->>UI: Displays verified record HUD
+    Verifier->>UI: Drags & drops the stamped PDF for crypto audit
+    UI->>API: POST /api/verify/upload (FormData with file)
+    API->>API: Computes SHA-256 hash of uploaded file
+    API->>DB: Looks up Document by Document ID or Hash
+    alt Hash matches issuedHash
+        API->>DB: Logs "Valid" Audit Record
+        API-->>UI: Returns success metadata
+        UI-->>Verifier: Displays "Verified Authentic" (Green HUD)
     else Hash does not match
+        API->>DB: Logs "Invalid" Tamper Attempt
+        API-->>UI: Returns TAMPER ALERT
         UI-->>Verifier: Displays "TAMPERED / Flagged" (Red Warning HUD)
     end
 ```
@@ -72,34 +89,30 @@ sequenceDiagram
 ### A. Frontend React Application (`/frontend`)
 
 #### 1. Registration (`UploadPage`)
-- **Metadata Form**: Allows selection of document category (e.g., Academic, Employment, Medical, Invoice, Legal, Government ID) and dynamic rendering of input fields based on the selected schema. All dates use native calendar pickers.
-- **Unique ID Generation**: Generates a 6-character random alphanumeric string (e.g. `X9K2PJ`). The generator checks against `localStorage` to ensure absolute uniqueness before assignment.
-- **Client-Side PDF Stamping**:
-  - If a PDF is uploaded, `pdf-lib` embeds a high-quality QR code + verification text in the bottom-right corner of the final page.
-  - If no PDF is uploaded, `pdf-lib` creates a premium certificate layout from scratch.
-  - The QR code is overlayed with a clickable hyperlink annotation so digital viewers can click directly on the QR code to navigate to the verification page.
+- **Metadata Form**: Allows selection of document category (e.g., Certificate, Marksheet, Medical Report) and dynamic rendering of input fields based on the selected schema.
+- **API Integration**: Collects form data and files into a `FormData` object and POSTs to `/api/documents/upload`.
 
 #### 2. Verification (`VerifyPage` & `CustomDropzone`)
-- **Interactive Dropzone**: Allows dragging and dropping a PDF file or clicking to select. It computes the SHA-256 hash of the file bytes.
-- **Auto-matching**: If the uploaded file's hash matches any registered document, the app automatically transitions to the verification screen for that document ID, triggering a high-tech scanning loader for 1.2 seconds before displaying details.
-- **Visual HUD**: Displays the status (Active, Revoked, Expired), recipient details, issuer details, issue date, upload date, and a side-by-side comparison of the uploaded file's hash against the registered hash.
+- **Interactive Dropzone**: Allows dragging and dropping a PDF file for verification.
+- **Backend Audit**: Forwards the file to `/api/verify/upload` where the complete cryptographic audit occurs.
+- **Visual HUD**: Displays the status (Active, Revoked), document metadata, and clearly flags if a tamper attempt (Hash Mismatch) is detected.
 
 ---
 
 ### B. Backend REST API (`/server`)
 
-The backend mirrors the client-side logic but persists data securely to MongoDB:
-
 1. **Database Models (`/models`)**:
-   - `User`: Handles issuer accounts with passwords hashed via `bcryptjs`.
-   - `Document`: Holds document metadata, `originalHash`, `issuedHash`, QR URL, and a `typeSpecificData` mixed object.
-   - `VerificationRecord`: Logs every public verification request (IP address, user agent, timestamp) for audit trail tracking.
+   - `Document`: Holds document metadata, `originalHash`, `issuedHash`, QR URL, verification count, and dynamically masked `typeSpecificData`.
+   - `VerificationRecord`: Logs every public verification request (IP address, user agent, timestamp, result) for audit trail tracking.
+   - `User`: Handles issuer accounts.
+   - `Counter`: Helps generate sequential, unique Document IDs.
 
-2. **Routes & Middleware (`/routes`, `/middleware`)**:
-   - `uploadMiddleware`: Restricts file uploads to PDFs under 10MB using `multer`.
-   - `authMiddleware`: Secures issuance endpoints with JWT verification.
-   - `rateLimiter`: Limits verify requests to prevent DDoS/bruteforce attacks.
+2. **Routes & Controllers (`/routes`, `/controllers`)**:
+   - `documentController`: Handles issuance. It isolates common fields from type-specific fields, delegates PDF generation if no file is uploaded, computes both `originalHash` and `issuedHash`, and saves to MongoDB.
+   - `verifyController`: Handles public verification checks. Returns only safe, public metadata, preventing exposure of internal hashes or sensitive user details unless successfully matched.
 
 3. **Stamping & Storage (`/utils`)**:
-   - Uses `pdf-lib` to load, stamp, and save PDF files on the server.
-   - Files are stored in the `/uploads` folder and served statically over HTTP.
+   - `generateDefaultPdf.js`: Creates a premium PDF template if the user didn't upload one.
+   - `embedQR.js`: Uses `pdf-lib` to overlay the QR code onto the final page of the PDF.
+   - `hashFile.js`: Performs the crucial SHA-256 binary fingerprinting.
+   - Files are stored in the `/uploads` folder.

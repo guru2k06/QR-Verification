@@ -31,21 +31,17 @@ This server runs in a **fully public configuration** (no authentication or user 
     rateLimiter.js     # Rate limits for public endpoints
     errorHandler.js    # Centralized exception response sanitization
   /models
-    Counter.js         # Sequenced document counter
+
     Document.js        # Core issued metadata & masked document details
     VerificationRecord.js # Audit verification logging
   /routes
     documentRoutes.js  # Document issuance & revoke routes (Public)
     verifyRoutes.js    # Public verification lookup routes (Public)
-  /scripts
-    seed.js            # Sequential counter bootstrap script
-    createTestPdf.js   # Dummy PDF generation tool for local REST testing
   /utils
     hashFile.js        # SHA-256 hex digest utility
     generateDocId.js   # Sequential atomic ID generator
     generateQR.js      # QR code generator buffer tool
     embedQR.js         # PDF drawing & metadata overlay utility
-    maskSensitiveData.js # Privacy filters based on document type
     storage.js         # Upload disk writer abstraction
   server.js            # Entry application setup
 ```
@@ -73,15 +69,7 @@ This server runs in a **fully public configuration** (no authentication or user 
    ```
 4. Update `.env` with your Mongo URI configuration if necessary.
 
----
 
-## Database Seeding
-To initialize the database counter for the current year, run:
-```bash
-npm run seed
-```
-
----
 
 ## Development Execution
 To run the Express development server with live reload / watch mode:

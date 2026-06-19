@@ -4,7 +4,6 @@ const hashFile = require('../utils/hashFile');
 const generateDocId = require('../utils/generateDocId');
 const generateQR = require('../utils/generateQR');
 const embedQR = require('../utils/embedQR');
-const maskSensitiveData = require('../utils/maskSensitiveData');
 const storage = require('../utils/storage');
 
 // Helper to determine high-level document category
@@ -155,8 +154,6 @@ const uploadDocument = async (req, res, next) => {
       stampedPdfBuffer
     );
 
-    const maskedData = maskSensitiveData(documentType, typeSpecificData);
-
     // 12. Save to database
     const document = await Document.create({
       documentId,
@@ -171,8 +168,8 @@ const uploadDocument = async (req, res, next) => {
       uploadDate: new Date(),
       status: 'Active',
       qrCodeUrl: verifyUrl,
-      typeSpecificData: maskedData,
-      sensitiveDataMasked: true
+      typeSpecificData,
+      sensitiveDataMasked: false
     });
 
     return res.status(201).json({

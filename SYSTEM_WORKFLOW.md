@@ -105,7 +105,7 @@ sequenceDiagram
    - `Document`: Holds document metadata, `originalHash`, `issuedHash`, QR URL, verification count, and dynamically masked `typeSpecificData`.
    - `VerificationRecord`: Logs every public verification request (IP address, user agent, timestamp, result) for audit trail tracking.
    - `User`: Handles issuer accounts.
-   - `Counter`: Helps generate sequential, unique Document IDs.
+
 
 2. **Routes & Controllers (`/routes`, `/controllers`)**:
    - `documentController`: Handles issuance. It isolates common fields from type-specific fields, delegates PDF generation if no file is uploaded, computes both `originalHash` and `issuedHash`, and saves to MongoDB.

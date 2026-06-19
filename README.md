@@ -68,7 +68,6 @@ sequenceDiagram
     DB-->>API: Returns public metadata (status, issuer, dates)
     API-->>UI: Displays verified record HUD
     Verifier->>UI: Drags & drops the stamped PDF for crypto audit
-    UI->>UI: Computes client-side SHA-256 hash for UI display
     UI->>API: POST /api/verify/upload (FormData with file)
     API->>API: Computes SHA-256 hash of uploaded file
     API->>DB: Looks up Document by Document ID or Hash
@@ -94,9 +93,9 @@ sequenceDiagram
 - **API Integration**: Collects form data and files into a `FormData` object and POSTs to `/api/documents/upload`.
 
 #### 2. Verification (`VerifyPage` & `CustomDropzone`)
-- **Interactive Dropzone**: Allows dragging and dropping a PDF file. It computes a client-side SHA-256 hash of the file bytes solely for visual comparison in the UI.
-- **Backend Audit**: Forwards the file to `/api/verify/upload` where the *true* cryptographic audit occurs.
-- **Visual HUD**: Displays the status (Active, Revoked), document metadata, and a side-by-side comparison of the uploaded file's hash against the registered hash if a tamper attempt is detected.
+- **Interactive Dropzone**: Allows dragging and dropping a PDF file for verification.
+- **Backend Audit**: Forwards the file to `/api/verify/upload` where the complete cryptographic audit occurs.
+- **Visual HUD**: Displays the status (Active, Revoked), document metadata, and clearly flags if a tamper attempt (Hash Mismatch) is detected.
 
 ---
 

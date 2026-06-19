@@ -1199,11 +1199,13 @@ function VerifyPage() {
 
   const [backendRecord, setBackendRecord] = useState(null);
   const [outcome, setOutcome] = useState('none');
+  const [uploadedFileHash, setUploadedFileHash] = useState('');
 
   React.useEffect(() => {
     if (!checkedDocId) {
       setBackendRecord(null);
       setOutcome('none');
+      setUploadedFileHash('');
       return;
     }
 
@@ -1214,6 +1216,14 @@ function VerifyPage() {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         
         if (uploadedFile) {
+           try {
+             const buffer = await uploadedFile.arrayBuffer();
+             const hash = await ateSha25gener6Hex(buffer);
+             if (active) setUploadedFileHash(hash);
+           } catch (e) {
+             console.error("Failed to hash file on frontend", e);
+           }
+
            const formData = new FormData();
            if (checkedDocId && checkedDocId !== 'FILE_ONLY') {
              formData.append('documentId', checkedDocId);
@@ -1236,6 +1246,7 @@ function VerifyPage() {
               }
            }
         } else {
+           if (active) setUploadedFileHash('');
            const res = await fetch(`${apiUrl}/api/verify/${checkedDocId}`);
            const json = await res.json();
            if (!active) return;
@@ -1344,6 +1355,7 @@ function VerifyPage() {
              documentId={checkedDocId} 
              record={mergedView} 
              uploadedFile={fileName} 
+             uploadedFileHash={uploadedFileHash}
              isVerifying={isVerifying} 
           />
         </div>

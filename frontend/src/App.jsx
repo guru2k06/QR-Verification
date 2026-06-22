@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { getVerificationRecordView } from './utils/verification';
 import Tooltip from './components/Tooltip';
 
+import QRCode from 'qrcode';
 import logoImg from './logo.png';
 
 const DOCUMENT_TYPE_CONFIG = {

@@ -616,13 +616,13 @@ function UploadPage() {
                 <input type="date" value={form.issueDate} required onChange={(event) => setForm({ ...form, issueDate: event.target.value })} />
               </label>
               
-              <label className="full-span">
-                <span style={{ display: 'flex', alignItems: 'center' }}>
+              <div className="full-span" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
                   PDF file to stamp (Optional)
                   <Tooltip text="Upload the document PDF file here to embed the verification QR code directly onto it. If skipped, a standard secure document will be generated automatically." />
                 </span>
                 <CustomDropzone file={pdfFile} setFile={setPdfFile} />
-              </label>
+              </div>
             </div>
 
             <button className="btn-primary" type="submit" disabled={isGenerating}>
@@ -972,13 +972,13 @@ function VerifyPage() {
                 </span>
                 <input value={inputDocId} required={!uploadedFile} onChange={(event) => setInputDocId(event.target.value)} placeholder="e.g. A1B2C3" />
               </label>
-              <label className="full-span">
-                <span style={{ display: "flex", alignItems: "center" }}>
+              <div className="full-span" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
                   Compare Document PDF file
                   <Tooltip text="Upload a PDF file to run a cryptographic audit comparing its binary signature with the registered stamp." />
                 </span>
                 <CustomDropzone file={uploadedFile} setFile={setUploadedFile} />
-              </label>
+              </div>
               
               <button
                 type="submit"

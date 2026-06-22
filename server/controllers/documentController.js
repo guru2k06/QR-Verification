@@ -126,12 +126,17 @@ const uploadDocument = async (req, res, next) => {
     // 7. Generate sequential documentId (DOC-YYYY-XXXX)
     const documentId = await generateDocId();
 
-    // 8. Build base verification URL
-    let baseUrl = process.env.BASE_VERIFY_URL || 'https://qr-verification-92l0iafpv-guru2k06s-projects.vercel.app/verify';
-    
-    // Force override if the cached environment variable is still stuck on localhost
-    if (baseUrl.includes('localhost')) {
-      baseUrl = 'https://qr-verification-92l0iafpv-guru2k06s-projects.vercel.app/verify';
+    // 8. Build base verification URL dynamically based on the request's Origin
+    let baseUrl = process.env.BASE_VERIFY_URL;
+    if (!baseUrl || baseUrl.includes('localhost')) {
+      const requestOrigin = req.get('origin') || req.get('referer');
+      if (requestOrigin) {
+        // Strip trailing slash if present
+        const cleanOrigin = requestOrigin.endsWith('/') ? requestOrigin.slice(0, -1) : requestOrigin;
+        baseUrl = `${cleanOrigin}/verify`;
+      } else {
+        baseUrl = 'https://qr-verification-plum.vercel.app/verify';
+      }
     }
 
     const verifyUrl = `${baseUrl}/${documentId}`;

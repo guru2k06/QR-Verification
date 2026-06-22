@@ -849,6 +849,7 @@ function VerifyPage() {
   const [checkedDocId, setCheckedDocId] = useState(routeDocumentId || '');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationTrigger, setVerificationTrigger] = useState(0);
 
   const [backendRecord, setBackendRecord] = useState(null);
   const [outcome, setOutcome] = useState('none');
@@ -920,18 +921,21 @@ function VerifyPage() {
       }
     };
     
-    // Slight delay for UX
-    const timer = setTimeout(() => fetchDoc(), 800);
+    const timer = setTimeout(() => {
+      fetchDoc();
+    }, 800);
+
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [checkedDocId, uploadedFile]);
+  }, [uploadedFile, checkedDocId, verificationTrigger]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!inputDocId && !uploadedFile) return;
     setCheckedDocId(inputDocId || 'FILE_ONLY');
+    setVerificationTrigger(prev => prev + 1);
   };
 
   const fileName = uploadedFile?.name || '';
@@ -990,6 +994,11 @@ function VerifyPage() {
                   <>
                     <svg className="secure-spin-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     Running Cryptographic Audit...
+                  </>
+                ) : outcome !== 'none' ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 2v6h6"></path></svg>
+                    Re-verify Document
                   </>
                 ) : (
                   'Verify Document'

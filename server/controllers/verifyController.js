@@ -137,7 +137,7 @@ const verifyUpload = async (req, res, next) => {
     if (computedHash !== document.issuedHash) {
       // Log tampering attempt
       await VerificationRecord.create({
-        documentId,
+        documentId: document.documentId,
         result: 'Invalid',
         checkedHash: computedHash,
         ipAddress: req.ip,
@@ -155,7 +155,7 @@ const verifyUpload = async (req, res, next) => {
     // 5. If match and status is Revoked, log and return revoked response
     if (document.status === 'Revoked') {
       await VerificationRecord.create({
-        documentId,
+        documentId: document.documentId,
         result: 'Revoked',
         checkedHash: computedHash,
         ipAddress: req.ip,
@@ -179,7 +179,7 @@ const verifyUpload = async (req, res, next) => {
     await document.save();
 
     await VerificationRecord.create({
-      documentId,
+      documentId: document.documentId,
       result: 'Valid',
       checkedHash: computedHash,
       ipAddress: req.ip,

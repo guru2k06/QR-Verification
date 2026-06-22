@@ -392,24 +392,33 @@ function UploadPage() {
     event.preventDefault();
     setIsGenerating(true);
     try {
-      const formData = new FormData();
-      if (pdfFile) {
-        formData.append('file', pdfFile);
-      }
-      formData.append('documentType', form.documentType);
+      const payload = {
+        documentType: form.documentType,
+      };
       
       issuanceFields.forEach((field) => {
         if (form[field.key]) {
-          formData.append(field.key, form[field.key]);
+          payload[field.key] = form[field.key];
         }
       });
-      if (form.issuer) formData.append('issuer', form.issuer);
-      if (form.issueDate) formData.append('issueDate', form.issueDate);
+      if (form.issuer) payload.issuer = form.issuer;
+      if (form.issueDate) payload.issueDate = form.issueDate;
+
+      if (pdfFile) {
+        const fileBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.readAsDataURL(pdfFile);
+        });
+        payload.fileBase64 = fileBase64;
+        payload.fileName = pdfFile.name;
+      }
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const response = await fetch(`${apiUrl}/api/documents/upload`, {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
@@ -860,14 +869,21 @@ function VerifyPage() {
         
         if (uploadedFile) {
 
-           const formData = new FormData();
+           const fileBase64 = await new Promise((resolve) => {
+             const reader = new FileReader();
+             reader.onload = () => resolve(reader.result.split(',')[1]);
+             reader.readAsDataURL(uploadedFile);
+           });
+           
+           const payload = { fileBase64, fileName: uploadedFile.name };
            if (checkedDocId && checkedDocId !== 'FILE_ONLY') {
-             formData.append('documentId', checkedDocId);
+             payload.documentId = checkedDocId;
            }
-           formData.append('file', uploadedFile);
+
            const res = await fetch(`${apiUrl}/api/verify/upload`, {
              method: 'POST',
-             body: formData
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify(payload)
            });
            const json = await res.json();
            if (!active) return;

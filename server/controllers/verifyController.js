@@ -92,7 +92,14 @@ const verifyUpload = async (req, res, next) => {
   try {
     const { documentId } = req.body;
 
-    if (!req.file) {
+    let fileBuffer;
+    if (req.file) {
+      fileBuffer = req.file.buffer;
+    } else if (req.body.fileBase64) {
+      fileBuffer = Buffer.from(req.body.fileBase64, 'base64');
+    }
+
+    if (!fileBuffer) {
       return res.status(400).json({
         success: false,
         message: 'Please upload a PDF file'
@@ -100,7 +107,7 @@ const verifyUpload = async (req, res, next) => {
     }
 
     // 1. Recompute SHA-256 hash of the uploaded file
-    const computedHash = hashFile(req.file.buffer);
+    const computedHash = hashFile(fileBuffer);
 
     // 2. Find document
     let document;

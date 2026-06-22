@@ -105,6 +105,9 @@ const uploadDocument = async (req, res, next) => {
     if (req.file) {
       pdfBuffer = req.file.buffer;
       originalName = req.file.originalname;
+    } else if (req.body.fileBase64) {
+      pdfBuffer = Buffer.from(req.body.fileBase64, 'base64');
+      originalName = req.body.fileName || `document_${Date.now()}.pdf`;
     } else {
       const generateDefaultPdf = require('../utils/generateDefaultPdf');
       pdfBuffer = await generateDefaultPdf({

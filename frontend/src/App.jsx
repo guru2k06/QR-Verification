@@ -847,12 +847,13 @@ function VerifyPage() {
     if (!checkedDocId) {
       setBackendRecord(null);
       setOutcome('none');
+      setIsVerifying(false);
       return;
     }
 
+    setIsVerifying(true);
     let active = true;
     const fetchDoc = async () => {
-      setIsVerifying(true);
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         

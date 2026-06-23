@@ -99,7 +99,10 @@ const uploadDocument = async (req, res, next) => {
       }
     });
 
-    // 5. Ensure we have a PDF buffer
+    // 5. Generate sequential documentId (DOC-YYYY-XXXX) early for template use
+    const documentId = await generateDocId();
+
+    // 6. Ensure we have a PDF buffer
     let pdfBuffer;
     let originalName;
     if (req.file) {
@@ -111,6 +114,7 @@ const uploadDocument = async (req, res, next) => {
     } else {
       const generateDefaultPdf = require('../utils/generateDefaultPdf');
       pdfBuffer = await generateDefaultPdf({
+        documentId,
         documentType,
         recipientName,
         issuer,
@@ -120,11 +124,8 @@ const uploadDocument = async (req, res, next) => {
       originalName = `${documentType.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
     }
 
-    // 6. Compute hash of the original file (uploaded or generated)
+    // 7. Compute hash of the original file (uploaded or generated)
     const originalHash = hashFile(pdfBuffer);
-
-    // 7. Generate sequential documentId (DOC-YYYY-XXXX)
-    const documentId = await generateDocId();
 
     // 8. Build base verification URL dynamically based on the request's Origin
     let baseUrl = process.env.BASE_VERIFY_URL;

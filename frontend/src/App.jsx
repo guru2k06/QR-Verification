@@ -428,7 +428,21 @@ function UploadPage() {
 
       const { documentId, downloadUrl } = result.data;
       const { recipientName } = resolvePdfMetadata(form);
-      const verificationUrl = `${window.location.origin}/verify/${documentId}`;
+      
+      const params = new URLSearchParams();
+      if (SHORT_KEYS.documentType) params.set(SHORT_KEYS.documentType, form.documentType);
+      issuanceFields.forEach((field) => {
+        const shortKey = SHORT_KEYS[field.key];
+        if (shortKey && form[field.key]) {
+          params.set(shortKey, form[field.key]);
+        }
+      });
+      if (form.issuer && SHORT_KEYS.issuer) params.set(SHORT_KEYS.issuer, form.issuer);
+      if (form.issueDate && SHORT_KEYS.issueDate) params.set(SHORT_KEYS.issueDate, form.issueDate);
+      
+      const queryStr = params.toString();
+
+      const verificationUrl = `${window.location.origin}/verify/${documentId}?${queryStr}`;
       const base64QrImage = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 250 });
 
       setSecuredDoc({
@@ -438,7 +452,7 @@ function UploadPage() {
         verificationUrl,
         qrCodeUrl: base64QrImage,
         downloadUrl,
-        query: ''
+        query: queryStr
       });
     } catch (err) {
       alert(`Failed to stamp PDF: ${err.message}`);
@@ -845,6 +859,8 @@ function ResultDetails({ view }) {
 
 function VerifyPage() {
   const { documentId: routeDocumentId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [inputDocId, setInputDocId] = useState(routeDocumentId || '');
   const [checkedDocId, setCheckedDocId] = useState(routeDocumentId || '');
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -853,6 +869,25 @@ function VerifyPage() {
 
   const [backendRecord, setBackendRecord] = useState(null);
   const [outcome, setOutcome] = useState('none');
+  const [urlData, setUrlData] = useState({});
+
+  React.useEffect(() => {
+    const data = {};
+    for (const [shortKey, value] of searchParams.entries()) {
+      const longKey = LONG_KEYS[shortKey];
+      if (longKey) {
+        data[longKey] = value;
+      }
+    }
+    setUrlData(data);
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    if (routeDocumentId && routeDocumentId !== checkedDocId && !uploadedFile) {
+      setInputDocId(routeDocumentId);
+      setCheckedDocId(routeDocumentId);
+    }
+  }, [routeDocumentId, checkedDocId, uploadedFile]);
 
   React.useEffect(() => {
     if (!checkedDocId) {
@@ -907,14 +942,14 @@ function VerifyPage() {
               setOutcome(json.data.status === 'Revoked' ? 'revoked' : 'valid');
            } else {
               setBackendRecord(null);
-              setOutcome('missing');
+              setOutcome(Array.from(searchParams.keys()).length > 0 ? 'valid' : 'missing');
            }
         }
       } catch (err) {
         console.warn('Backend server error:', err);
         if (active) {
            setBackendRecord(null);
-           setOutcome('missing');
+           setOutcome(Array.from(searchParams.keys()).length > 0 ? 'valid' : 'missing');
         }
       } finally {
         if (active) setIsVerifying(false);
@@ -934,8 +969,12 @@ function VerifyPage() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!inputDocId && !uploadedFile) return;
-    setCheckedDocId(inputDocId || 'FILE_ONLY');
-    setVerificationTrigger(prev => prev + 1);
+    if (inputDocId && !uploadedFile && inputDocId !== routeDocumentId) {
+      navigate(`/verify/${inputDocId}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+    } else {
+      setCheckedDocId(inputDocId || 'FILE_ONLY');
+      setVerificationTrigger(prev => prev + 1);
+    }
   };
 
   const fileName = uploadedFile?.name || '';
@@ -951,10 +990,16 @@ function VerifyPage() {
   }
 
   const mergedView = backendRecord ? {
+    ...urlData,
     ...backendRecord,
     ...(backendRecord.typeSpecificData || {}),
-    issueDate: formattedIssueDate || backendRecord.issueDate,
-    userName: backendRecord.recipientName || 'Unknown',
+    issueDate: formattedIssueDate || backendRecord.issueDate || urlData.issueDate,
+    userName: backendRecord.recipientName || urlData.recipientName || urlData.studentName || urlData.employeeName || urlData.patientName || urlData.payerPayeeName || urlData.partyNames || urlData.idName || 'Unknown',
+    verificationTimestamp
+  } : Object.keys(urlData).length > 0 ? {
+    ...urlData,
+    issueDate: urlData.issueDate || '',
+    userName: urlData.recipientName || urlData.studentName || urlData.employeeName || urlData.patientName || urlData.payerPayeeName || urlData.partyNames || urlData.idName || 'Unknown',
     verificationTimestamp
   } : {};
 

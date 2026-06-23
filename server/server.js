@@ -15,6 +15,8 @@ connectDB();
 
 const app = express();
 
+// Required for express-rate-limit when deployed behind a reverse proxy (Render/Vercel)
+app.set('trust proxy', 1);
 // Set HTTP Security Headers
 // We customize contentSecurityPolicy to allow static PDF serving/loading if needed
 app.use(helmet({

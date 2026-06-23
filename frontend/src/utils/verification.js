@@ -30,7 +30,7 @@ export function getVerificationRecordView({ documentId, record, uploadedFile }) 
 
   return {
     ...details,
-    documentId,
+    documentId: details.documentId || documentId,
     userName,
     issuer: details.issuer || userName,
     email: details.email || 'recipient@example.com',

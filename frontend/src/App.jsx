@@ -767,8 +767,7 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
     const isIdMismatch = uploadedFile?.name && !uploadedFile.name.toLowerCase().includes(documentId.toLowerCase());
 
     return (
-      <div className="result-banner-hud hud-danger scanner-container">
-        <div className="scanner-line"></div>
+      <div className="result-banner-hud hud-danger">
         <div className="status-orb">!</div>
         <div>
           <div className="hud-status-text">Document Tampered</div>
@@ -864,6 +863,18 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
 function ResultDetails({ view }) {
   const verificationCategory = getDocumentCategory(view.documentType);
   const verificationTimestamp = view.verificationTimestamp || new Date().toLocaleString();
+  
+  let securedTimestamp = view.uploadDate || view.issueDate;
+  if (securedTimestamp && securedTimestamp.includes('T')) {
+    securedTimestamp = new Date(securedTimestamp).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
   const fieldSchema = getVerificationFieldSchema(view.documentType);
   const fields = fieldSchema
     .map((field) => ({
@@ -894,6 +905,10 @@ function ResultDetails({ view }) {
         <div className="hud-detail-item">
           <span>Issued Date</span>
           <strong>{view.issueDate}</strong>
+        </div>
+        <div className="hud-detail-item">
+          <span>Secured Time</span>
+          <strong>{securedTimestamp}</strong>
         </div>
         <div className="hud-detail-item">
           <span>Verification time</span>
@@ -970,9 +985,8 @@ function VerifyPage() {
            });
            
            const payload = { fileBase64, fileName: uploadedFile.name };
-           if (checkedDocId && checkedDocId !== 'FILE_ONLY') {
-             payload.documentId = checkedDocId;
-           }
+           // We intentionally do not send documentId here so the backend 
+           // verifies the file globally by its cryptographic hash.
 
            const res = await fetch(`${apiUrl}/api/verify/upload`, {
              method: 'POST',

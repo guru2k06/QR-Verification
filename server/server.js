@@ -57,7 +57,7 @@ app.use('/api/verify', require('./routes/verifyRoutes'));
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Universal Secure PDF Verification API is running.'
+    message: 'veriDoc API is running.'
   });
 });
 

@@ -5,6 +5,7 @@ import Tooltip from './components/Tooltip';
 
 import QRCode from 'qrcode';
 import logoImg from './logo.png';
+import shieldImg from './shield.png';
 
 const DOCUMENT_TYPE_CONFIG = {
   Certificate: { category: 'Academic', note: 'Best for certificates and academic completion documents.' },
@@ -203,23 +204,25 @@ function AppLayout({ children }) {
   return (
     <div className="page-shell">
       {isWakingUp && (
-        <div className="cold-start-banner" style={{ background: '#ffa000', color: '#fff', padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>
+        <div className="cold-start-banner" style={{ background: 'var(--warning)', color: '#fff', padding: '10px', textAlign: 'center', fontWeight: '600', borderRadius: '8px', marginBottom: '1rem' }}>
           Waking up server, please wait... This may take up to 50 seconds.
         </div>
       )}
       <header className="top-bar">
         <Link to="/" className="brand-link" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
           <img src={logoImg} alt="Secure Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
-          <strong>QR PDF Check</strong>
+          <strong>veriDoc</strong>
         </Link>
-        <nav className="nav-tabs">
-          <Link to="/" className={`nav-tab ${!isVerify ? 'active' : ''}`}>
-            Issue
-          </Link>
-          <Link to="/verify" className={`nav-tab ${isVerify ? 'active' : ''}`}>
-            Verify
-          </Link>
-        </nav>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <nav className="nav-tabs">
+            <Link to="/" className={`nav-tab ${!isVerify ? 'active' : ''}`}>
+              Issue
+            </Link>
+            <Link to="/verify" className={`nav-tab ${isVerify ? 'active' : ''}`}>
+              Verify
+            </Link>
+          </nav>
+        </div>
       </header>
 
       <main>
@@ -309,7 +312,7 @@ function CustomDropzone({ file, setFile }) {
         <>
           <div className="dropzone-icon">📥</div>
           <div className="dropzone-text">
-            <strong>Choose a PDF file</strong> or drag it here
+            <strong>Drag your PDF here</strong> or click to browse
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
             PDF up to 10MB
@@ -467,11 +470,11 @@ function UploadPage() {
       <AppLayout>
         <div className="single-panel-layout">
           <div className="panel-card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-            <div className="status-orb" style={{ color: 'var(--success)', border: '1px solid var(--accent)', margin: '0 auto', textShadow: '0 0 10px rgba(var(--accent-rgb), 0.4)', display: 'grid', placeItems: 'center' }}>
+            <div className="status-orb" style={{ margin: '0 auto', display: 'grid', placeItems: 'center', color: 'var(--success)', borderColor: 'var(--success)' }}>
               ✓
             </div>
             <div>
-              <h1 style={{ background: 'linear-gradient(to right, #10b981, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>
+              <h1 style={{ color: 'var(--text)', display: 'inline-block' }}>
                 PDF Secured Successfully!
               </h1>
               <p className="subtitle" style={{ fontSize: '1rem', marginTop: '0.5rem' }}>
@@ -479,11 +482,11 @@ function UploadPage() {
               </p>
             </div>
 
-            <div className="hud-details-card" style={{ width: '100%', maxWidth: '500px', background: 'rgba(9, 14, 26, 0.4)', border: '1px solid var(--border)' }}>
+            <div className="hud-details-card" style={{ width: '100%', maxWidth: '500px' }}>
               <div className="hud-details-grid" style={{ textAlign: 'left' }}>
                 <div className="hud-detail-item" style={{ gridColumn: '1 / -1' }}>
                   <span>Document ID</span>
-                  <strong style={{ fontSize: '1.25rem', color: '#fff', fontFamily: 'monospace', letterSpacing: '1px' }}>{securedDoc.documentId}</strong>
+                  <strong style={{ fontSize: '1.25rem', color: 'var(--text)', fontFamily: 'monospace', letterSpacing: '1px' }}>{securedDoc.documentId}</strong>
                 </div>
                 <div className="hud-detail-item">
                   <span>Document Type</span>
@@ -495,7 +498,7 @@ function UploadPage() {
                 </div>
                 <div className="hud-detail-item" style={{ gridColumn: '1 / -1' }}>
                   <span>Verification Link</span>
-                  <a href={securedDoc.verificationUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--violet)', textDecoration: 'underline', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                  <a href={securedDoc.verificationUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: '0.8rem', wordBreak: 'break-all' }}>
                     {`${window.location.origin.replace(/^https?:\/\//, '')}/verify/${securedDoc.documentId}`}
                   </a>
                 </div>
@@ -517,7 +520,7 @@ function UploadPage() {
               <button
                 type="button"
                 className="btn-primary"
-                style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.3)' }}
+                style={{ flex: 1, background: 'var(--success)' }}
                 onClick={() => {
                   const link = document.createElement('a');
                   link.href = securedDoc.downloadUrl;
@@ -565,91 +568,146 @@ function UploadPage() {
 
   return (
     <AppLayout>
-      <div className="single-panel-layout">
-        <div className="panel-card">
-          <div>
-            <h1>Issue a secure document</h1>
-            <p className="subtitle">Only the fields needed for this document type are shown.</p>
-          </div>
-          
-          <form className="stack-form" onSubmit={handleSubmit}>
-            <div className="form-grid">
-              <label className="full-span">
-                <span style={{ display: 'flex', alignItems: 'center' }}>
-                  Document type
-                  <Tooltip text={currentConfig.note} />
-                </span>
-                <select value={form.documentType} onChange={(event) => updateDocumentType(event.target.value)}>
-                  <option>Certificate</option>
-                  <option>Marksheet</option>
-                  <option>Degree</option>
-                  <option>Bonafide</option>
-                  <option>Offer Letter</option>
-                  <option>Experience Letter</option>
-                  <option>Medical Report</option>
-                  <option>Invoice</option>
-                  <option>Legal Document</option>
-                  <option>Identity Document</option>
-                </select>
-              </label>
-              
-              {issuanceFields.map((field) => (
-                <label key={field.key}>
-                  <span style={{ display: 'flex', alignItems: 'center' }}>
-                    {field.label}
-                    {field.tooltip && <Tooltip text={field.tooltip} />}
-                  </span>
-                  <input
-                    type={field.type || 'text'}
-                    value={form[field.key]}
-                    placeholder={field.placeholder}
-                    required
-                    onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
-                  />
-                </label>
-              ))}
-              
-              <label>
-                <span style={{ display: 'flex', alignItems: 'center' }}>
-                  Issuer Authority
-                  <Tooltip text="The organization or officer responsible for authorizing and generating this document." />
-                </span>
-                <input
-                  value={form.issuer}
-                  placeholder="Department / Officer Name"
-                  required
-                  onChange={(event) => setForm({ ...form, issuer: event.target.value })}
-                />
-              </label>
-              
-              <label>
-                <span style={{ display: 'flex', alignItems: 'center' }}>
-                  Issue date
-                  <Tooltip text="The date the document was officially signed and issued." />
-                </span>
-                <input type="date" value={form.issueDate} required onChange={(event) => setForm({ ...form, issueDate: event.target.value })} />
-              </label>
-              
-              <div className="full-span" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
-                  PDF file to stamp (Optional)
-                  <Tooltip text="Upload the document PDF file here to embed the verification QR code directly onto it. If skipped, a standard secure document will be generated automatically." />
-                </span>
-                <CustomDropzone file={pdfFile} setFile={setPdfFile} />
+      <div className="issue-page-split">
+        {/* Left Sidebar - Step Tracker */}
+        <aside className="issue-sidebar">
+          <div className="stepper-container">
+            <div className={`step-item completed`}>
+              <div className="step-circle">✓</div>
+              <div className="step-content">
+                <span className="step-title">Select Type</span>
+                <span className="step-desc">Choose document</span>
               </div>
             </div>
+            <div className={`step-item active`}>
+              <div className="step-circle">2</div>
+              <div className="step-content">
+                <span className="step-title">Fill Details</span>
+                <span className="step-desc">Enter record data</span>
+              </div>
+            </div>
+            <div className={`step-item`}>
+              <div className="step-circle">3</div>
+              <div className="step-content">
+                <span className="step-title">Generate</span>
+                <span className="step-desc">Secure & Sign PDF</span>
+              </div>
+            </div>
+          </div>
+        </aside>
 
-            <button className="btn-primary" type="submit" disabled={isGenerating}>
-              {isGenerating ? (
-                <>
-                  <svg className="secure-spin-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  Generating Stamped PDF...
-                </>
-              ) : (
-                'Create secure document record'
-              )}
-            </button>
-          </form>
+        {/* Right Panel - Form */}
+        <div className="issue-form-area">
+          <div className="panel-card" style={{ position: 'relative' }}>
+            {/* Animated seal badge in top right */}
+            <div className="shield-badge" style={{ position: 'absolute', top: '2rem', right: '2.5rem', opacity: 0.1, width: '48px', height: '48px', pointerEvents: 'none' }}>
+              <img src={shieldImg} alt="Trust Shield" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.5rem' }}>Issue a secure document</h1>
+              <p className="subtitle">Only the fields needed for this document type are shown.</p>
+            </div>
+            
+            <form className="stack-form" onSubmit={handleSubmit}>
+              
+              <div className="form-section">
+                <div className="form-section-title">
+                  Document Type <Tooltip text={currentConfig.note} />
+                </div>
+                <div className="floating-input-group">
+                  <select 
+                    className="floating-input" 
+                    value={form.documentType} 
+                    onChange={(event) => updateDocumentType(event.target.value)}
+                    style={{ padding: '0.75rem 1rem' }}
+                  >
+                    <option>Certificate</option>
+                    <option>Marksheet</option>
+                    <option>Degree</option>
+                    <option>Bonafide</option>
+                    <option>Offer Letter</option>
+                    <option>Experience Letter</option>
+                    <option>Medical Report</option>
+                    <option>Invoice</option>
+                    <option>Legal Document</option>
+                    <option>Identity Document</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <div className="form-section-title">Document Details</div>
+                <div className="form-grid">
+                  {issuanceFields.map((field) => (
+                    <div className="floating-input-group" key={field.key}>
+                      <input
+                        className="floating-input"
+                        type={field.type || 'text'}
+                        value={form[field.key]}
+                        placeholder=" "
+                        required
+                        onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
+                      />
+                      <label className="floating-label">
+                        {field.label}
+                      </label>
+                      {form[field.key] && form[field.key].length > 0 && <span className="valid-check">✓</span>}
+                    </div>
+                  ))}
+                  
+                  <div className="floating-input-group">
+                    <input
+                      className="floating-input"
+                      value={form.issuer}
+                      placeholder=" "
+                      required
+                      onChange={(event) => setForm({ ...form, issuer: event.target.value })}
+                    />
+                    <label className="floating-label">Issuer Authority</label>
+                    {form.issuer && form.issuer.length > 0 && <span className="valid-check">✓</span>}
+                  </div>
+                  
+                  <div className="floating-input-group">
+                    <input 
+                      className="floating-input"
+                      type="date" 
+                      value={form.issueDate} 
+                      placeholder=" "
+                      required 
+                      onChange={(event) => setForm({ ...form, issueDate: event.target.value })} 
+                    />
+                    <label className="floating-label">Issue date</label>
+                    {form.issueDate && form.issueDate.length > 0 && <span className="valid-check">✓</span>}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-section">
+                <div className="form-section-title">
+                  Upload PDF to Stamp (Optional)
+                </div>
+                <CustomDropzone file={pdfFile} setFile={setPdfFile} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button className="btn-primary" type="submit" disabled={isGenerating}>
+                  {isGenerating ? (
+                    <>
+                      <div className="loading-spinner-hud" style={{ width: '20px', height: '20px', margin: '0', borderWidth: '2px', borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}></div>
+                      Processing & Stamping...
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '1.2rem' }}>🔒</span> Issue Secure Document
+                    </>
+                  )}
+                </button>
+                <div className="trust-line">
+                  🔐 Document will be sealed with SHA-256 hash and a unique QR code
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </AppLayout>
@@ -659,11 +717,11 @@ function UploadPage() {
 function VerificationState({ outcome, documentId, record, uploadedFile, isVerifying }) {
   if (isVerifying) {
     return (
-      <div className="result-banner-hud scanner-container" style={{ background: 'rgba(255, 255, 255, 0.02)', borderColor: 'var(--violet)', padding: '2.5rem 2rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+      <div className="result-banner-hud scanner-container" style={{ padding: '2.5rem 2rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
         <div className="scanner-line"></div>
         <div className="loading-spinner-hud" style={{ margin: 0 }}></div>
         <div style={{ flex: 1 }}>
-          <div className="hud-status-text" style={{ color: '#fff', fontSize: '1.25rem' }}>Running Security Audits</div>
+          <div className="hud-status-text">Running Security Audits</div>
           <div className="hud-status-reason" style={{ marginTop: '0.4rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
             Comparing binary signature hashes and resolving registry ledger status...
           </div>
@@ -674,10 +732,10 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
 
   if (!documentId) {
     return (
-      <div className="result-banner-hud" style={{ background: 'rgba(255, 255, 255, 0.01)', borderColor: 'var(--border)', padding: '2.5rem 2rem' }}>
+      <div className="result-banner-hud" style={{ padding: '2.5rem 2rem' }}>
         <div className="status-orb" style={{ color: 'var(--muted)', fontSize: '2rem' }}>?</div>
         <div>
-          <div className="hud-status-text" style={{ color: '#fff', fontSize: '1.25rem' }}>Ready for verification</div>
+          <div className="hud-status-text">Ready for verification</div>
           <div className="hud-status-reason" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
             Enter a valid Document ID on the left and click the **Verify Document** button to run cryptographic audits.
           </div>
@@ -714,7 +772,7 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
         <div className="status-orb">!</div>
         <div>
           <div className="hud-status-text">Document Tampered</div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: '#fff' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: 'var(--text)' }}>
             {view.userName}
           </div>
           <div className="hud-status-reason" style={{ marginTop: '0.4rem' }}>
@@ -739,7 +797,7 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
             </div>
             <div className="hash-row">
               <span>Status</span>
-              <div className="hash-code" style={{ color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.08)' }}>
+              <div className="hash-code" style={{ color: 'var(--danger)', background: '#fee2e2' }}>
                 Hash Mismatch Detected
               </div>
             </div>
@@ -755,7 +813,7 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
         <div className="status-orb">!</div>
         <div>
           <div className="hud-status-text">Document Revoked</div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: '#fff' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: 'var(--text)' }}>
             {view.userName}
           </div>
           <div className="hud-status-reason" style={{ marginTop: '0.4rem' }}>
@@ -776,7 +834,7 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
         <div className="status-orb">✓</div>
         <div>
           <div className="hud-status-text">Verified Authentic</div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: '#fff' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: 'var(--text)' }}>
             {view.userName}
           </div>
           <div className="hud-status-reason" style={{ marginTop: '0.4rem' }}>
@@ -793,7 +851,7 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
         <div className="hash-comparison-card" style={{ marginTop: '0.5rem' }}>
           <div className="hash-row">
             <span>Registered Cryptographic Hash</span>
-            <div className="hash-code" style={{ color: 'var(--accent)', background: 'rgba(16, 185, 129, 0.08)' }}>
+            <div className="hash-code" style={{ color: 'var(--success)', background: '#ecfdf5' }}>
               {view.originalHash}
             </div>
           </div>

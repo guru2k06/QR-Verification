@@ -152,29 +152,7 @@ const verifyUpload = async (req, res, next) => {
       });
     }
 
-    // 5. If match and status is Revoked, log and return revoked response
-    if (document.status === 'Revoked') {
-      await VerificationRecord.create({
-        documentId: document.documentId,
-        result: 'Revoked',
-        checkedHash: computedHash,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
-      });
-
-      return res.status(200).json({
-        success: true,
-        data: {
-          documentId: document.documentId,
-          status: 'Revoked',
-          revokedAt: document.revokedAt || document.updatedAt,
-          revocationReason: document.revocationReason || 'Invalidated by issuer'
-        },
-        message: 'This document has been revoked'
-      });
-    }
-
-    // 6. If match and Active, increment verify count, log audit record, and return metadata
+    // 5. If match and Active, increment verify count, log audit record, and return metadata
     document.verificationCount += 1;
     await document.save();
 

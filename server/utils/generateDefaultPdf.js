@@ -49,7 +49,16 @@ async function generateDefaultPdf(metadata) {
 
     const pdfBytes = await page.pdf({
       format: 'A4',
-      printBackground: true
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: '<div style="font-size:10px; width:100%; text-align:center; color:#555; padding-bottom:10px;"><strong>Disclaimer:</strong> This is an auto-generated document, cryptographically secured by veriDoc. Scan the embedded QR code to verify authenticity.</div>',
+      margin: {
+        top: '40px',
+        bottom: '80px',
+        left: '40px',
+        right: '40px'
+      }
     });
 
     await browser.close();

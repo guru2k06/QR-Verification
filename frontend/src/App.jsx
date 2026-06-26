@@ -27,7 +27,7 @@ const ISSUANCE_FIELD_SCHEMAS = {
     { key: 'institution', label: 'Institution', placeholder: 'School / college / university', tooltip: 'The academic institution issuing this record.' },
     { key: 'course', label: 'Course', placeholder: 'Course or program name', tooltip: 'The degree or academic program completed.' },
     { key: 'gradeCgpa', label: 'Grade / CGPA', placeholder: 'Grade or CGPA', tooltip: 'Final grade, classification, or CGPA score.' },
-    { key: 'yearOfPassing', label: 'Year of passing', placeholder: 'YYYY', tooltip: 'The calendar year of graduation or completion.' }
+    { key: 'yearOfPassing', label: 'Year of passing', placeholder: 'YYYY', tooltip: 'The calendar year of graduation or completion.', type: 'number', min: 1950, max: new Date().getFullYear() + 10 }
   ],
   Employment: [
     { key: 'employeeName', label: 'Employee name', placeholder: 'Full employee name', tooltip: 'Official full name of the employee.' },
@@ -643,6 +643,8 @@ function UploadPage() {
                       <input
                         className="floating-input"
                         type={field.type || 'text'}
+                        min={field.min}
+                        max={field.max}
                         value={form[field.key]}
                         placeholder=" "
                         required

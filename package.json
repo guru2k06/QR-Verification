@@ -1,1 +1,17 @@
-{}
+{
+  "name": "qr-verification",
+  "version": "1.0.0",
+  "description": "Root project for QR Verification",
+  "scripts": {
+    "install:server": "cd server && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "install:all": "npm run install:server && npm run install:frontend",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:frontend\"",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

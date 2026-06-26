@@ -40,6 +40,15 @@ const uploadDocument = async (req, res, next) => {
       if (!req.body.rollNumber) errors.push('rollNumber is required for Academic documents');
       if (!req.body.institution) errors.push('institution is required for Academic documents');
       if (!req.body.course) errors.push('course is required for Academic documents');
+      if (!req.body.yearOfPassing) {
+        errors.push('yearOfPassing is required for Academic documents');
+      } else {
+        const yop = parseInt(req.body.yearOfPassing, 10);
+        const maxYear = new Date().getFullYear() + 10;
+        if (isNaN(yop) || yop < 1950 || yop > maxYear) {
+          errors.push(`yearOfPassing must be between 1950 and ${maxYear}`);
+        }
+      }
     } else if (category === 'Employment') {
       if (!req.body.employeeName) errors.push('employeeName is required for Employment documents');
       if (!req.body.designation) errors.push('designation is required for Employment documents');

@@ -752,13 +752,13 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
     return (
       <div className="result-banner-hud hud-danger">
         <div className="status-orb">✕</div>
-        <div>
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div className="hud-status-text">Document Invalid</div>
-          <div className="hud-status-reason">
-            Status: <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Unregistered</span>
-          </div>
-          <div className="hud-status-reason" style={{ marginTop: '0.25rem' }}>
-            Reason: Record not found in registration database.
+          <div style={{ display: 'grid', gridTemplateColumns: 'max-content auto', gap: '0.6rem 1.25rem', textAlign: 'left', padding: '1rem 1.5rem', background: '#ffffff', border: '1px solid #fca5a5', borderRadius: '10px', fontSize: '0.9rem', color: 'var(--text)', margin: '1.25rem auto 0', maxWidth: '100%', boxShadow: '0 2px 4px rgba(220,38,38,0.05)' }}>
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Status:</span>
+            <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Unregistered</span>
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Reason:</span>
+            <span style={{ lineHeight: '1.4' }}>Record not found in registration database.</span>
           </div>
         </div>
       </div>
@@ -771,19 +771,19 @@ function VerificationState({ outcome, documentId, record, uploadedFile, isVerify
     return (
       <div className="result-banner-hud hud-danger">
         <div className="status-orb">!</div>
-        <div>
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div className="hud-status-text">Document Tampered</div>
           <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '0.25rem', color: 'var(--text)' }}>
             {view.userName}
           </div>
-          <div className="hud-status-reason" style={{ marginTop: '0.4rem' }}>
-            Status: <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>TAMPER_ALERT</span>
-          </div>
-          <div className="hud-status-reason" style={{ marginTop: '0.25rem' }}>
-            Reason: Binary fingerprint does not match the registered stamp.
+          <div style={{ display: 'grid', gridTemplateColumns: 'max-content auto', gap: '0.6rem 1.25rem', textAlign: 'left', padding: '1rem 1.5rem', background: '#ffffff', border: '1px solid #fca5a5', borderRadius: '10px', fontSize: '0.9rem', color: 'var(--text)', margin: '1.25rem auto 0', maxWidth: '100%', boxShadow: '0 2px 4px rgba(220,38,38,0.05)' }}>
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Status:</span>
+            <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>TAMPER_ALERT</span>
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Reason:</span>
+            <span style={{ lineHeight: '1.4' }}>Binary fingerprint does not match the registered stamp.</span>
           </div>
           {isIdMismatch && (
-            <div className="hud-status-reason" style={{ marginTop: '0.5rem', color: '#f59e0b', fontWeight: 'bold', background: 'rgba(245, 158, 11, 0.1)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+            <div className="hud-status-reason" style={{ marginTop: '0.75rem', color: '#f59e0b', fontWeight: 'bold', background: '#fffbeb', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #fde68a', width: '100%', boxSizing: 'border-box' }}>
               ⚠️ ID Mismatch: The uploaded filename does not contain the queried Document ID: {documentId.toUpperCase()}.
             </div>
           )}
@@ -986,9 +986,8 @@ function VerifyPage() {
              reader.readAsDataURL(uploadedFile);
            });
            
-           const payload = { fileBase64, fileName: uploadedFile.name };
-           // We intentionally do not send documentId here so the backend 
-           // verifies the file globally by its cryptographic hash.
+           const payload = { fileBase64, fileName: uploadedFile.name, documentId: checkedDocId !== 'FILE_ONLY' ? checkedDocId : undefined };
+           // Send documentId so the backend can find the document by ID and detect tampering via hash mismatch.
 
            const res = await fetch(`${apiUrl}/api/verify/upload`, {
              method: 'POST',
